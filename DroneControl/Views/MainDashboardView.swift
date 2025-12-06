@@ -134,6 +134,95 @@ struct BatteryInfoItem: View {
     }
 }
 
+// MARK: - GPS Info Card (Compact - Full Width)
+struct GPSInfoCard: View {
+    let fixType: Int
+    let satellites: Int
+    let latitude: Double
+    let longitude: Double
+    
+    var body: some View {
+        VStack(spacing: 6) {
+            // Header with fix type and satellites
+            HStack(spacing: 10) {
+                Image(systemName: "location.fill")
+                    .font(.system(size: 16))
+                    .foregroundColor(gpsColor(fixType))
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("GPS")
+                        .font(.system(size: 10))
+                        .foregroundColor(.gray)
+                    
+                    Text(gpsFixName(fixType))
+                        .font(.system(size: 14, weight: .bold, design: .monospaced))
+                        .foregroundColor(.white)
+                }
+                
+                Spacer()
+                
+                // Satellites on the right
+                HStack(spacing: 4) {
+                    Image(systemName: "antenna.radiowaves.left.and.right")
+                        .font(.system(size: 11))
+                        .foregroundColor(.cyan)
+                    Text("\(satellites)")
+                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.cyan)
+                }
+            }
+            
+            // Coordinates - single row
+            if latitude != 0.0 || longitude != 0.0 {
+                Divider()
+                    .background(Color.gray.opacity(0.2))
+                
+                HStack(spacing: 2) {
+                    Text("LAT:")
+                        .font(.system(size: 9))
+                        .foregroundColor(.gray)
+                    Text(String(format: "%.5f°", latitude))
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundColor(.white)
+                    
+                    Text("•")
+                        .font(.system(size: 9))
+                        .foregroundColor(.gray.opacity(0.5))
+                        .padding(.horizontal, 6)
+                    
+                    Text("LON:")
+                        .font(.system(size: 9))
+                        .foregroundColor(.gray)
+                    Text(String(format: "%.5f°", longitude))
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundColor(.white)
+                    
+                    Spacer()
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(red: 0.1, green: 0.1, blue: 0.15))
+        )
+    }
+    
+    private func gpsColor(_ fixType: Int) -> Color {
+        switch fixType {
+        case 3...7: return .green
+        case 2: return .orange
+        default: return .red
+        }
+    }
+    
+    private func gpsFixName(_ fixType: Int) -> String {
+        let names = ["No GPS", "No Fix", "2D", "3D", "DGPS", "RTK Float", "RTK Fixed"]
+        return fixType < names.count ? names[fixType] : "Unknown"
+    }
+}
+
 // MARK: - Compact Layout (iPhone)
 struct CompactLayout: View {
     @EnvironmentObject var mavlinkManager: MAVLinkManager
@@ -146,7 +235,7 @@ struct CompactLayout: View {
                 pitch: mavlinkManager.pitch,
                 heading: mavlinkManager.heading
             )
-            .frame(height: 240)
+            .frame(height: 230)
             .padding(.horizontal, 16)
             .padding(.top, 15)
             .padding(.bottom, 15)
@@ -193,18 +282,20 @@ struct CompactLayout: View {
             }
             .padding(.horizontal, 16)
             
-            // Telemetry grid - compact 2x2
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                MiniTelemetryCard(
-                    icon: "location.fill",
-                    title: "GPS",
-                    value: gpsFixName(Int(mavlinkManager.gpsFixType)),
-                    color: gpsColor(Int(mavlinkManager.gpsFixType))
-                )
-                
+            // GPS info - full width
+            GPSInfoCard(
+                fixType: Int(mavlinkManager.gpsFixType),
+                satellites: Int(mavlinkManager.gpsSatellites),
+                latitude: mavlinkManager.latitude,
+                longitude: mavlinkManager.longitude
+            )
+            .padding(.horizontal, 16)
+            
+            // Telemetry grid - compact 1x3
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 MiniTelemetryCard(
                     icon: "arrow.up",
-                    title: "Altitude",
+                    title: "Alt",
                     value: String(format: "%.1fm", mavlinkManager.altitude),
                     color: .cyan
                 )
@@ -264,12 +355,11 @@ struct WideLayout: View {
                     color: batteryColor(mavlinkManager.batteryRemaining)
                 )
                 
-                TelemetryCard(
-                    icon: "location.fill",
-                    title: "GPS",
-                    value: gpsFixName(Int(mavlinkManager.gpsFixType)),
-                    subtitle: "\(mavlinkManager.gpsSatellites) sats",
-                    color: gpsColor(Int(mavlinkManager.gpsFixType))
+                GPSTelemetryCard(
+                    fixType: Int(mavlinkManager.gpsFixType),
+                    satellites: Int(mavlinkManager.gpsSatellites),
+                    latitude: mavlinkManager.latitude,
+                    longitude: mavlinkManager.longitude
                 )
                 
                 TelemetryCard(
@@ -334,6 +424,80 @@ struct WideLayout: View {
         if percent > 50 { return .green }
         if percent > 20 { return .orange }
         return .red
+    }
+    
+    private func gpsColor(_ fixType: Int) -> Color {
+        switch fixType {
+        case 3...7: return .green
+        case 2: return .orange
+        default: return .red
+        }
+    }
+    
+    private func gpsFixName(_ fixType: Int) -> String {
+        let names = ["No GPS", "No Fix", "2D", "3D", "DGPS", "RTK Float", "RTK Fixed"]
+        return fixType < names.count ? names[fixType] : "Unknown"
+    }
+}
+
+// MARK: - GPS Telemetry Card (iPad/Mac)
+struct GPSTelemetryCard: View {
+    let fixType: Int
+    let satellites: Int
+    let latitude: Double
+    let longitude: Double
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Image(systemName: "location.fill")
+                    .font(.system(size: 20))
+                    .foregroundColor(gpsColor(fixType))
+                    .frame(width: 32)
+                
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("GPS")
+                        .font(.system(size: 11))
+                        .foregroundColor(.gray)
+                    
+                    Text(gpsFixName(fixType))
+                        .font(.system(size: 16, weight: .bold, design: .monospaced))
+                        .foregroundColor(.white)
+                    
+                    Text("\(satellites) sats")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundColor(.gray)
+                }
+            }
+            
+            if latitude != 0.0 || longitude != 0.0 {
+                Divider()
+                    .background(Color.gray.opacity(0.2))
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 4) {
+                        Text("LAT:")
+                            .font(.system(size: 9))
+                            .foregroundColor(.gray)
+                        Text(String(format: "%.6f°", latitude))
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .foregroundColor(.white)
+                    }
+                    
+                    HStack(spacing: 4) {
+                        Text("LON:")
+                            .font(.system(size: 9))
+                            .foregroundColor(.gray)
+                        Text(String(format: "%.6f°", longitude))
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .foregroundColor(.white)
+                    }
+                }
+            }
+        }
+        .padding(10)
+        .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+        .cornerRadius(10)
     }
     
     private func gpsColor(_ fixType: Int) -> Color {

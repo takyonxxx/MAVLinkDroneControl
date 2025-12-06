@@ -98,14 +98,14 @@ struct AttitudeIndicator: View {
                     .stroke(Color.white, lineWidth: 2)
                     .frame(width: size, height: size)
                 
-                // Roll indicator arc
+                // Roll indicator arc (without pointer)
                 RollIndicator(roll: roll, size: size)
                 
                 // Compass rose (cardinal marks)
                 CompassRose(heading: heading, size: size)
                 
-                // Heading compass at top
-                VStack(spacing: 4) {
+                // Heading compass at top-left (outside HSI)
+                VStack(alignment: .leading, spacing: 10) {
                     // Cardinal direction
                     Text(cardinalDirection(heading))
                         .font(.system(size: size * 0.06, weight: .bold))
@@ -119,20 +119,20 @@ struct AttitudeIndicator: View {
                     
                     // Numeric heading
                     Text("\(Int(heading))°")
-                        .font(.system(size: size * 0.08, weight: .bold, design: .monospaced))
+                        .font(.system(size: size * 0.06, weight: .bold, design: .monospaced))
                         .foregroundColor(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
                         .background(
-                            RoundedRectangle(cornerRadius: 6)
+                            RoundedRectangle(cornerRadius: 5)
                                 .fill(Color.black.opacity(0.7))
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 6)
+                                    RoundedRectangle(cornerRadius: 5)
                                         .stroke(Color.cyan, lineWidth: 1.5)
                                 )
                         )
                 }
-                .offset(y: -size * 0.58)
+                .offset(x: -size * 0.65, y: -size * 0.4)
             }
             .frame(width: size, height: size)
             .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
@@ -214,17 +214,7 @@ struct RollIndicator: View {
                 }
             }
             
-            // Roll pointer (yellow triangle)
-            Path { path in
-                let w = size * 0.04
-                let h = size * 0.06
-                path.move(to: CGPoint(x: 0, y: -size * 0.5))
-                path.addLine(to: CGPoint(x: -w, y: -size * 0.5 + h))
-                path.addLine(to: CGPoint(x: w, y: -size * 0.5 + h))
-                path.closeSubpath()
-            }
-            .fill(Color.yellow)
-            .rotationEffect(.degrees(Double(-roll)))
+            // Roll pointer (yellow triangle) - REMOVED
         }
     }
 }
