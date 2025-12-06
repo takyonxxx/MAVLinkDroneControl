@@ -55,27 +55,19 @@ A native iOS application for controlling ArduPilot-based drones (Copter, Plane, 
 ## 📱 Screenshots
 
 ### Dashboard
-<img src="images/Ekran_Resmi_2025-12-06_-_15_58_55.png" width="300">
-
-*Real-time attitude indicator, battery monitoring, and motor outputs*
+<img src="https://raw.githubusercontent.com/takyonxxx/MAVLinkDroneControl/main/images/Ekran%20Resmi%202025-12-06%20-%2015.58.55.png" width="300">
 
 ### Joystick Control
-<img src="images/Ekran_Resmi_2025-12-06_-_16_00_00.png" width="300">
-
-*Dual joystick interface with reset functionality*
+<img src="https://raw.githubusercontent.com/takyonxxx/MAVLinkDroneControl/main/images/Ekran%20Resmi%202025-12-06%20-%2016.00.00.png" width="300">
 
 ### Control Panel
-<img src="images/Ekran_Resmi_2025-12-06_-_15_59_38.png" width="300">
-
-*ARM/DISARM controls and quick actions*
+<img src="https://raw.githubusercontent.com/takyonxxx/MAVLinkDroneControl/main/images/Ekran%20Resmi%202025-12-06%20-%2015.59.38.png" width="300">
 
 ### Flight Modes
-<img src="images/Ekran_Resmi_2025-12-06_-_16_00_39.png" width="300">
-
-*Comprehensive flight mode selection*
+<img src="https://raw.githubusercontent.com/takyonxxx/MAVLinkDroneControl/main/images/Ekran%20Resmi%202025-12-06%20-%2016.00.39.png" width="300">
 
 ### Servo Monitor
-<img src="images/Ekran_Resmi_2025-12-06_-_16_01_17.png" width="300">
+<img src="https://raw.githubusercontent.com/takyonxxx/MAVLinkDroneControl/main/images/Ekran%20Resmi%202025-12-06%20-%2016.01.17.png" width="300">
 
 *16-channel servo output monitoring*
 
