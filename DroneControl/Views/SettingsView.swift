@@ -49,7 +49,7 @@ struct ConnectionCard: View {
                 .font(.system(size: 18, weight: .bold))
                 .foregroundColor(.white)
             
-            VStack(spacing: 12) {
+            VStack(spacing: 10) {
                 HStack {
                     Text("Host")
                         .font(.system(size: 14))
@@ -294,13 +294,13 @@ struct TelemetryRow: View {
     var body: some View {
         HStack {
             Text(label)
-                .font(.system(size: 13))
+                .font(.system(size: 15))
                 .foregroundColor(.gray)
             
             Spacer()
             
             Text(value)
-                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                .font(.system(size: 18, weight: .semibold, design: .monospaced))
                 .foregroundColor(color)
         }
     }
@@ -313,13 +313,13 @@ struct InfoRow: View {
     var body: some View {
         HStack {
             Text(label)
-                .font(.system(size: 13))
+                .font(.system(size: 15))
                 .foregroundColor(.gray)
             
             Spacer()
             
             Text(value)
-                .font(.system(size: 13, weight: .medium, design: .monospaced))
+                .font(.system(size: 18, weight: .medium, design: .monospaced))
                 .foregroundColor(.white)
         }
     }

@@ -122,11 +122,11 @@ struct BatteryInfoItem: View {
             
             VStack(alignment: .leading, spacing: 2) {
                 Text(label)
-                    .font(.system(size: 9))
+                    .font(.system(size: 10))
                     .foregroundColor(.gray)
                 
                 Text(value)
-                    .font(.system(size: 14, weight: .bold, design: .monospaced))
+                    .font(.system(size: 18, weight: .bold, design: .monospaced))
                     .foregroundColor(color)
             }
         }
@@ -151,8 +151,8 @@ struct GPSInfoCard: View {
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("GPS")
-                        .font(.system(size: 10))
-                        .foregroundColor(.gray)
+                        .font(.system(size: 12))
+                        .foregroundColor(.cyan)
                     
                     Text(gpsFixName(fixType))
                         .font(.system(size: 14, weight: .bold, design: .monospaced))
@@ -164,7 +164,7 @@ struct GPSInfoCard: View {
                 // Satellites on the right
                 HStack(spacing: 4) {
                     Image(systemName: "antenna.radiowaves.left.and.right")
-                        .font(.system(size: 11))
+                        .font(.system(size: 12))
                         .foregroundColor(.cyan)
                     Text("\(satellites)")
                         .font(.system(size: 13, weight: .semibold, design: .monospaced))
@@ -173,32 +173,30 @@ struct GPSInfoCard: View {
             }
             
             // Coordinates - single row
-            if latitude != 0.0 || longitude != 0.0 {
-                Divider()
-                    .background(Color.gray.opacity(0.2))
+            Divider()
+                .background(Color.gray.opacity(0.2))
+            
+            HStack(spacing: 2) {
+                Text("LAT:")
+                    .font(.system(size: 12))
+                    .foregroundColor(.gray)
+                Text(String(format: "%.5f°", latitude))
+                    .font(.system(size: 14, weight: .medium, design: .monospaced))
+                    .foregroundColor(.white)
                 
-                HStack(spacing: 2) {
-                    Text("LAT:")
-                        .font(.system(size: 9))
-                        .foregroundColor(.gray)
-                    Text(String(format: "%.5f°", latitude))
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
-                        .foregroundColor(.white)
-                    
-                    Text("•")
-                        .font(.system(size: 9))
-                        .foregroundColor(.gray.opacity(0.5))
-                        .padding(.horizontal, 6)
-                    
-                    Text("LON:")
-                        .font(.system(size: 9))
-                        .foregroundColor(.gray)
-                    Text(String(format: "%.5f°", longitude))
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
-                        .foregroundColor(.white)
-                    
-                    Spacer()
-                }
+                Text("•")
+                    .font(.system(size: 12))
+                    .foregroundColor(.gray.opacity(0.5))
+                    .padding(.horizontal, 6)
+                
+                Text("LON:")
+                    .font(.system(size: 12))
+                    .foregroundColor(.gray)
+                Text(String(format: "%.5f°", longitude))
+                    .font(.system(size: 14, weight: .medium, design: .monospaced))
+                    .foregroundColor(.white)
+                
+                Spacer()
             }
         }
         .padding(.horizontal, 12)
@@ -235,7 +233,7 @@ struct CompactLayout: View {
                 pitch: mavlinkManager.pitch,
                 heading: mavlinkManager.heading
             )
-            .frame(height: 230)
+            .frame(height: 220)
             .padding(.horizontal, 16)
             .padding(.top, 15)
             .padding(.bottom, 15)
@@ -244,10 +242,10 @@ struct CompactLayout: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 13))
+                        .font(.system(size: 12))
                         .foregroundColor(.cyan)
                     Text("Motor Outputs")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: 13, weight: .bold))
                         .foregroundColor(.white)
                 }
                 
