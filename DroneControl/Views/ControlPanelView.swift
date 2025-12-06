@@ -169,7 +169,7 @@ struct FlightModeCard: View {
     @EnvironmentObject var mavlinkManager: MAVLinkManager
     @Binding var selectedMode: CopterFlightMode
     
-    let quickModes: [CopterFlightMode] = [.stabilize, .rtl, .land, .altHold, .loiter]
+    let quickModes: [CopterFlightMode] = [.stabilize, .altHold, .rtl, .land, .loiter]
     
     var body: some View {
         VStack(spacing: 16) {
