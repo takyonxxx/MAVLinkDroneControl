@@ -29,9 +29,6 @@ struct ControlPanelView: View {
                 // Flight Mode Selector
                 FlightModeCard(selectedMode: $selectedMode)
                 
-                // Quick Actions
-                QuickActionsCard()
-                
                 // Telemetry Summary
                 TelemetrySummaryCard()
             }
@@ -96,9 +93,6 @@ struct ArmDisarmCard: View {
     
     var body: some View {
         VStack(spacing: 16) {
-            Text("Vehicle Control")
-                .font(.headline)
-                .foregroundColor(.white)
             
             HStack(spacing: 16) {
                 // ARM Button
@@ -175,7 +169,7 @@ struct FlightModeCard: View {
     @EnvironmentObject var mavlinkManager: MAVLinkManager
     @Binding var selectedMode: CopterFlightMode
     
-    let quickModes: [CopterFlightMode] = [.stabilize, .altHold, .loiter, .rtl, .land]
+    let quickModes: [CopterFlightMode] = [.stabilize, .rtl, .land, .altHold, .loiter]
     
     var body: some View {
         VStack(spacing: 16) {
@@ -269,96 +263,18 @@ struct ModeButton: View {
     }
 }
 
-// MARK: - Quick Actions Card
-struct QuickActionsCard: View {
-    @EnvironmentObject var mavlinkManager: MAVLinkManager
-    
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("Quick Actions")
-                .font(.headline)
-                .foregroundColor(.white)
-            
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                QuickActionButton(
-                    icon: "location.fill",
-                    title: "Hold Position",
-                    action: {
-                        mavlinkManager.setFlightMode(.posHold)
-                    }
-                )
-                
-                QuickActionButton(
-                    icon: "house.fill",
-                    title: "Return Home",
-                    action: {
-                        mavlinkManager.setFlightMode(.rtl)
-                    }
-                )
-                
-                QuickActionButton(
-                    icon: "arrow.down.circle.fill",
-                    title: "Land",
-                    action: {
-                        mavlinkManager.setFlightMode(.land)
-                    }
-                )
-                
-                QuickActionButton(
-                    icon: "arrow.up.and.down",
-                    title: "Hold Altitude",
-                    action: {
-                        mavlinkManager.setFlightMode(.altHold)
-                    }
-                )
-            }
-        }
-        .padding()
-        .background(Color.black.opacity(0.3))
-        .cornerRadius(12)
-    }
-}
-
-// MARK: - Quick Action Button
-struct QuickActionButton: View {
-    @EnvironmentObject var mavlinkManager: MAVLinkManager
-    let icon: String
-    let title: String
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.title2)
-                Text(title)
-                    .font(.caption)
-            }
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color.blue.opacity(0.3))
-            .cornerRadius(8)
-        }
-        .disabled(!mavlinkManager.isConnected)
-    }
-}
-
 // MARK: - Telemetry Summary Card
 struct TelemetrySummaryCard: View {
     @EnvironmentObject var mavlinkManager: MAVLinkManager
     
     var body: some View {
-        VStack(spacing: 16) {
-            Text("Telemetry")
-                .font(.headline)
-                .foregroundColor(.white)
+        VStack(spacing: 10) {
             
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 TelemetryItem(
                     icon: "battery.100",
                     label: "Battery",
-                    value: "\(mavlinkManager.batteryRemaining)%",
+                    value: "\(mavlinkManager.batteryVoltage) V",
                     color: batteryColor
                 )
                 
@@ -390,13 +306,15 @@ struct TelemetrySummaryCard: View {
     }
     
     private var batteryColor: Color {
-        let remaining = mavlinkManager.batteryRemaining
-        if remaining > 50 {
-            return .green
-        } else if remaining > 20 {
-            return .orange
+        let voltage = mavlinkManager.batteryVoltage
+        
+        // 3S LiPo voltage seviyeleri
+        if voltage > 11.5 {
+            return .green      // Yüksek şarj (11.5V - 12.6V)
+        } else if voltage > 10.5 {
+            return .orange     // Orta seviye (10.5V - 11.5V)
         } else {
-            return .red
+            return .red        // Düşük batarya (< 10.5V)
         }
     }
     

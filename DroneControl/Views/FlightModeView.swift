@@ -11,9 +11,9 @@ struct FlightModeView: View {
     @EnvironmentObject var mavlinkManager: MAVLinkManager
     
     let availableModes: [CopterFlightMode] = [
-        .stabilize, .acro, .altHold, .auto,
-        .guided, .loiter, .rtl, .circle,
-        .land, .posHold, .brake, .smartRTL
+        .stabilize, .altHold, .loiter, .auto,
+        .land, .rtl, .posHold, .guided, .circle,
+        .brake, .smartRTL, .acro
     ]
     
     let columns = [

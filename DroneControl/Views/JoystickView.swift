@@ -64,7 +64,7 @@ struct JoystickView: View {
                                 returnToCenter: false
                             )
                             Text("Throttle / Yaw")
-                                .font(.system(size: isCompact ? 11 : 13, weight: .medium))
+                                .font(.system(size: isCompact ? 15 : 15, weight: .medium))
                                 .foregroundColor(.gray)
                         }
                         
@@ -76,7 +76,7 @@ struct JoystickView: View {
                                 returnToCenter: true
                             )
                             Text("Pitch / Roll")
-                                .font(.system(size: isCompact ? 11 : 13, weight: .medium))
+                                .font(.system(size: isCompact ? 15 : 15, weight: .medium))
                                 .foregroundColor(.gray)
                         }
                     }
@@ -92,7 +92,7 @@ struct JoystickView: View {
                             Image(systemName: "arrow.counterclockwise")
                                 .font(.system(size: 16, weight: .semibold))
                             Text("Reset Joysticks")
-                                .font(.system(size: 15, weight: .semibold))
+                                .font(.system(size: 16, weight: .semibold))
                         }
                         .foregroundColor(.white)
                         .padding(.horizontal, 24)
@@ -236,13 +236,13 @@ struct ValueDisplay: View {
     var body: some View {
         VStack(spacing: 4) {
             Text(label)
-                .font(.system(size: isCompact ? 10 : 12))
+                .font(.system(size: isCompact ? 15 : 15))
                 .foregroundColor(.gray)
             
             Text("\(value)")
-                .font(.system(size: isCompact ? 16 : 20, weight: .bold, design: .monospaced))
+                .font(.system(size: isCompact ? 20 : 20, weight: .bold, design: .monospaced))
                 .foregroundColor(valueColor)
-                .frame(minWidth: isCompact ? 50 : 60)
+                .frame(minWidth: isCompact ? 50 : 75)
         }
     }
     
