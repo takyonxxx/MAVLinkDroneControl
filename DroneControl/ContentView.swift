@@ -38,19 +38,26 @@ struct ContentView: View {
                 }
                 .tag(3)
             
+            // Map View
+            EnhancedMapView(mavlinkManager: MAVLinkManager.shared)
+                .tabItem {
+                    Label("Map", systemImage: "map.fill")
+                }
+                .tag(4)
+            
             // Servo Monitor
             ServoMonitorView()
                 .tabItem {
                     Label("Servos", systemImage: "slider.horizontal.3")
                 }
-                .tag(4)
+                .tag(5)
             
             // Settings
             SettingsView()
                 .tabItem {
                     Label("Settings", systemImage: "gearshape")
                 }
-                .tag(5)
+                .tag(6)
         }
         .accentColor(.cyan)
     }

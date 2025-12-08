@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9C8154FF2EE74BF1004EEB8A /* MapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C8154FE2EE74BF1004EEB8A /* MapView.swift */; };
+		9C8155002EE74BF1004EEB8A /* EnhancedMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C8154FD2EE74BF1004EEB8A /* EnhancedMapView.swift */; };
+		9C8155082EE74D70004EEB8A /* MapModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C8155072EE74D70004EEB8A /* MapModels.swift */; };
 		9CC5ADCB2EE43D050021F292 /* AttitudeIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CC5ADCA2EE43D050021F292 /* AttitudeIndicator.swift */; };
 		9CC5ADCD2EE43D270021F292 /* MainDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CC5ADCC2EE43D270021F292 /* MainDashboardView.swift */; };
 		9CC5ADCF2EE445400021F292 /* StatusBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CC5ADCE2EE445400021F292 /* StatusBar.swift */; };
@@ -25,6 +28,9 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		9C8154FD2EE74BF1004EEB8A /* EnhancedMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnhancedMapView.swift; sourceTree = "<group>"; };
+		9C8154FE2EE74BF1004EEB8A /* MapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapView.swift; sourceTree = "<group>"; };
+		9C8155072EE74D70004EEB8A /* MapModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapModels.swift; sourceTree = "<group>"; };
 		9CC5ADC92EE39DFA0021F292 /* DroneControl-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "DroneControl-Bridging-Header.h"; sourceTree = "<group>"; };
 		9CC5ADCA2EE43D050021F292 /* AttitudeIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttitudeIndicator.swift; sourceTree = "<group>"; };
 		9CC5ADCC2EE43D270021F292 /* MainDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainDashboardView.swift; sourceTree = "<group>"; };
@@ -57,6 +63,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		9C8155062EE74D42004EEB8A /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				9C8155072EE74D70004EEB8A /* MapModels.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
 		A50000001 = {
 			isa = PBXGroup;
 			children = (
@@ -68,6 +82,7 @@
 		A50000002 /* DroneControl */ = {
 			isa = PBXGroup;
 			children = (
+				9C8155062EE74D42004EEB8A /* Models */,
 				A20000001 /* DroneControlApp.swift */,
 				A20000002 /* ContentView.swift */,
 				A50000003 /* MAVLink */,
@@ -93,6 +108,8 @@
 		A50000005 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				9C8154FD2EE74BF1004EEB8A /* EnhancedMapView.swift */,
+				9C8154FE2EE74BF1004EEB8A /* MapView.swift */,
 				9CC5ADCE2EE445400021F292 /* StatusBar.swift */,
 				A20000007 /* JoystickView.swift */,
 				A20000008 /* ServoMonitorView.swift */,
@@ -188,9 +205,12 @@
 				A10000003 /* MAVLinkProtocol.swift in Sources */,
 				9CC5ADCB2EE43D050021F292 /* AttitudeIndicator.swift in Sources */,
 				A10000004 /* UDPConnection.swift in Sources */,
+				9C8155082EE74D70004EEB8A /* MapModels.swift in Sources */,
 				A10000005 /* MAVLinkManager.swift in Sources */,
 				A10000007 /* JoystickView.swift in Sources */,
 				9CC5ADCF2EE445400021F292 /* StatusBar.swift in Sources */,
+				9C8154FF2EE74BF1004EEB8A /* MapView.swift in Sources */,
+				9C8155002EE74BF1004EEB8A /* EnhancedMapView.swift in Sources */,
 				A10000008 /* ServoMonitorView.swift in Sources */,
 				A10000009 /* FlightModeView.swift in Sources */,
 				9CC5ADCD2EE43D270021F292 /* MainDashboardView.swift in Sources */,
