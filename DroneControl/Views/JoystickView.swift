@@ -7,7 +7,7 @@ import SwiftUI
 
 struct JoystickView: View {
     @EnvironmentObject var mavlinkManager: MAVLinkManager
-    @State private var leftJoystickPosition: CGPoint = .zero
+    @State private var leftJoystickPosition: CGPoint = CGPoint(x: 0, y: -1)  // Throttle minimum'da başlar
     @State private var rightJoystickPosition: CGPoint = .zero
     
     private let updateTimer = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
@@ -84,7 +84,7 @@ struct JoystickView: View {
                     // Reset Button
                     Button(action: {
                         withAnimation(.spring(response: 0.3)) {
-                            leftJoystickPosition = .zero
+                            leftJoystickPosition = CGPoint(x: 0, y: -1)  // Throttle minimum'a döner
                             rightJoystickPosition = .zero
                         }
                     }) {
