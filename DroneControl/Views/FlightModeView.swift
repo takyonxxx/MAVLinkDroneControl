@@ -12,7 +12,7 @@ struct FlightModeView: View {
     
     let availableModes: [CopterFlightMode] = [
         .stabilize, .altHold, .posHold, .loiter,
-        .land, .rtl, .auto, .guided
+        .land, .rtl, .auto, .autotune
     ]
     
     let columns = [
