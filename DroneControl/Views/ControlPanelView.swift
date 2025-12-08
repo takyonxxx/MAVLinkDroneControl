@@ -169,7 +169,7 @@ struct FlightModeCard: View {
     @EnvironmentObject var mavlinkManager: MAVLinkManager
     @Binding var selectedMode: CopterFlightMode
     
-    let quickModes: [CopterFlightMode] = [.altHold, .posHold, .loiter, .land]
+    let quickModes: [CopterFlightMode] = [.stabilize, .altHold, .loiter, .land]
     
     var body: some View {
         VStack(spacing: 16) {
@@ -192,7 +192,7 @@ struct FlightModeCard: View {
             
             // Quick mode buttons
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
+                HStack(spacing: 6) {
                     ForEach(quickModes, id: \.self) { mode in
                         ModeButton(mode: mode, selectedMode: $selectedMode)
                     }
