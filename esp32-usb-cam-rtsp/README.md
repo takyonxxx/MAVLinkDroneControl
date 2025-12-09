@@ -21,6 +21,10 @@ ESP32-S3 kartına bağlı USB kameradan görüntü alıp WiFi Access Point üzer
 - **Pixhawk** veya ArduPilot uyumlu uçuş kontrolcüsü
 - Güç kaynağı (USB kamera için yeterli akım)
 
+### Sistem Diyagramı
+
+![ESP32 RTSP MAVLink System Diagram](esp32_rtsp_mavlink_diagram.jpg)
+
 ### Bağlantı Şeması
 
 ```
@@ -306,5 +310,3 @@ MIT License - Özgürce kullanın ve geliştirin!
 - [RFC 2326 - RTSP](https://tools.ietf.org/html/rfc2326)
 - [RFC 3550 - RTP](https://tools.ietf.org/html/rfc3550)
 - [RFC 2435 - RTP Payload for JPEG](https://tools.ietf.org/html/rfc2435)
-
-C:\Users\MSI\.platformio\penv\.espidf-5.1.1\Scripts\python.exe -m pip install --upgrade idf-component-manager
