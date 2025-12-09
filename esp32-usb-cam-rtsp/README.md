@@ -25,6 +25,8 @@ ESP32-S3 kartına bağlı USB kameradan görüntü alıp WiFi Access Point üzer
 
 ![ESP32 RTSP MAVLink System Diagram](esp32_rtsp_mavlink_diagram.jpg)
 
+![ESP32 Usb Connection](ESP32S3-USB-Connections.png)
+
 ### Bağlantı Şeması
 
 ```
