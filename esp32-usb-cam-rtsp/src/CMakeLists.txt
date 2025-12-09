@@ -1,0 +1,21 @@
+idf_component_register(
+    SRCS 
+        "main.c"
+        "wifi_ap.c"
+        "usb_camera.c"
+        "rtsp_server.c"
+        "mavlink_telemetry.c"
+    INCLUDE_DIRS 
+        "../include"
+    REQUIRES 
+        nvs_flash
+        esp_wifi
+        esp_event
+        esp_netif
+        lwip
+        driver
+        usb
+        esp_timer
+    PRIV_REQUIRES
+        usb_host_uvc
+)
