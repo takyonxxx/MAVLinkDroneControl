@@ -271,28 +271,28 @@ struct TelemetrySummaryCard: View {
         VStack(spacing: 10) {
             
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                TelemetryItem(
+                ControlPanelTelemetryItem(
                     icon: "battery.100",
                     label: "Battery",
                     value: "\(mavlinkManager.batteryVoltage) V",
                     color: batteryColor
                 )
                 
-                TelemetryItem(
+                ControlPanelTelemetryItem(
                     icon: "location.fill",
                     label: "GPS",
                     value: "\(mavlinkManager.gpsSatellites) sats",
                     color: gpsColor
                 )
                 
-                TelemetryItem(
+                ControlPanelTelemetryItem(
                     icon: "arrow.up.and.down",
                     label: "Altitude",
                     value: String(format: "%.1f m", mavlinkManager.altitude),
                     color: .cyan
                 )
                 
-                TelemetryItem(
+                ControlPanelTelemetryItem(
                     icon: "speedometer",
                     label: "Speed",
                     value: String(format: "%.1f m/s", mavlinkManager.groundSpeed),
@@ -323,8 +323,8 @@ struct TelemetrySummaryCard: View {
     }
 }
 
-// MARK: - Telemetry Item
-struct TelemetryItem: View {
+// MARK: - Control Panel Telemetry Item
+private struct ControlPanelTelemetryItem: View {
     let icon: String
     let label: String
     let value: String
