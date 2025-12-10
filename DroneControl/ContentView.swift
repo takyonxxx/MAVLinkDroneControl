@@ -17,47 +17,54 @@ struct ContentView: View {
                 }
                 .tag(0)
             
+            // Video Stream
+            VideoStreamView(mavlinkManager: MAVLinkManager.shared)
+                .tabItem {
+                    Label("Video", systemImage: "video.fill")
+                }
+                .tag(1)
+            
             // Control Panel
             ControlPanelView()
                 .tabItem {
                     Label("Control", systemImage: "gamecontroller")
                 }
-                .tag(1)
+                .tag(2)
             
             // Joystick
             JoystickView()
                 .tabItem {
                     Label("Joystick", systemImage: "move.3d")
                 }
-                .tag(2)
+                .tag(3)
             
             // Flight Modes
             FlightModeView()
                 .tabItem {
                     Label("Modes", systemImage: "airplane")
                 }
-                .tag(3)
+                .tag(4)
             
             // Map View
             EnhancedMapView(mavlinkManager: MAVLinkManager.shared)
                 .tabItem {
                     Label("Map", systemImage: "map.fill")
                 }
-                .tag(4)
+                .tag(5)
             
             // Servo Monitor
             ServoMonitorView()
                 .tabItem {
                     Label("Servos", systemImage: "slider.horizontal.3")
                 }
-                .tag(5)
+                .tag(6)
             
             // Settings
             SettingsView()
                 .tabItem {
                     Label("Settings", systemImage: "gearshape")
                 }
-                .tag(6)
+                .tag(7)
         }
         .accentColor(.cyan)
     }

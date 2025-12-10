@@ -25,6 +25,7 @@
 		A10000011 /* ControlPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000011 /* ControlPanelView.swift */; };
 		A10000012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000012 /* Assets.xcassets */; };
 		A10000013 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000014 /* SettingsView.swift */; };
+		C10000001 /* VideoStreamView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000001 /* VideoStreamView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -49,6 +50,7 @@
 		A20000013 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A20000014 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A20000015 /* DroneControl.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DroneControl.entitlements; sourceTree = "<group>"; };
+		B20000001 /* VideoStreamView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoStreamView.swift; sourceTree = "<group>"; };
 		A30000001 /* DroneControl.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DroneControl.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -119,6 +121,7 @@
 				A20000014 /* SettingsView.swift */,
 				9CC5ADCA2EE43D050021F292 /* AttitudeIndicator.swift */,
 				9CC5ADCC2EE43D270021F292 /* MainDashboardView.swift */,
+				B20000001 /* VideoStreamView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -217,6 +220,7 @@
 				A10000010 /* ConnectionStatusView.swift in Sources */,
 				A10000011 /* ControlPanelView.swift in Sources */,
 				A10000013 /* SettingsView.swift in Sources */,
+					C10000001 /* VideoStreamView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
