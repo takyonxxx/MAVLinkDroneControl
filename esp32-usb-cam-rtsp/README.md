@@ -27,6 +27,10 @@ ESP32-CAM üzerindeki OV2640 kameradan görüntü alıp WiFi Access Point üzeri
 - Flash LED (GPIO4)
 - Harici anten seçeneği
 
+### ESP32-CAM Pinout
+
+![ESP32-CAM Pinout](esp32_cam_pinout.png)
+
 ### Sistem Diyagramı
 
 ![ESP32-CAM RTSP MAVLink System](esp32_cam_rtsp_diagram.svg)
@@ -51,6 +55,7 @@ IO0          -----> GND      (Sadece programlama modunda)
 
 > ⚠️ **Programlama Sonrası IO0-GND bağlantısını kaldırın!**
 > ⚠️ Pixhawk ile 3.3V sinyal seviyesi uyumludur, level shifter gerekmez.
+> ⚠️ **GPIO12/13 SD kart ile paylaşımlıdır.** MAVLink kullanırken SD kart takılı olmamalıdır!
 
 ### Pin Mapping
 
