@@ -1,5 +1,5 @@
-# ESP32-S3 USB Camera RTSP Partition Table
-# Name,   Type, SubType, Offset,  Size, Flags
+# ESP32-S3 N8R2 Partition Table (8MB Flash)
+# Name,   Type, SubType, Offset,  Size,    Flags
 nvs,      data, nvs,     0x9000,  0x5000,
 otadata,  data, ota,     0xe000,  0x2000,
 app0,     app,  ota_0,   0x10000, 0x300000,

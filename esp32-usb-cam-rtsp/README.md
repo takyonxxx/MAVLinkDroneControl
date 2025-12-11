@@ -1,63 +1,92 @@
-# ESP32-S3 USB Camera RTSP Streamer + MAVLink Telemetry
+# ESP32-CAM RTSP Streamer + MAVLink Telemetry
 
-ESP32-S3 kartına bağlı USB kameradan görüntü alıp WiFi Access Point üzerinden RTSP protokolü ile yayınlayan ve aynı zamanda Pixhawk'tan MAVLink telemetri verilerini GCS'ye ileten embedded sistem projesi.
+ESP32-CAM üzerindeki OV2640 kameradan görüntü alıp WiFi Access Point üzerinden MJPEG HTTP streaming ile yayınlayan ve aynı zamanda Pixhawk'tan MAVLink telemetri verilerini GCS'ye ileten embedded sistem projesi.
 
 ## 🎯 Özellikler
 
-- **USB UVC Kamera Desteği**: Standart UVC uyumlu USB kameralar ile çalışır
+- **OV2640 Kamera**: 2MP dahili kamera, JPEG donanım kodlama
 - **WiFi Access Point**: 192.168.4.0/24 subnet'inde hotspot oluşturur
-- **RTSP Streaming**: RFC 2326/3550 uyumlu RTSP/RTP server
-- **MJPEG Format**: Yüksek uyumluluk için Motion JPEG
+- **MJPEG HTTP Streaming**: Tarayıcı ve VLC uyumlu video stream
 - **MAVLink Telemetri**: Pixhawk <-> GCS köprüsü (UDP 14550)
 - **Çift Yönlü İletişim**: GCS komutları Pixhawk'a iletilir
-- **Çoklu İstemci**: Aynı anda 4 RTSP + 4 GCS istemcisi
-- **Otomatik Yeniden Bağlanma**: Kamera/Pixhawk çıkarılıp takıldığında otomatik devam
+- **Çoklu İstemci**: Aynı anda 4 video + 4 GCS istemcisi
+- **Flash LED**: GPIO4 ile kontrol edilebilir aydınlatma
+- **4MB PSRAM**: Yüksek çözünürlük desteği
 
-## 🔧 Donanım Gereksinimleri
+## 📷 Donanım
 
-- **ESP32-S3 DevKitC-1** veya benzeri (PSRAM'lı)
-- **USB OTG Kablosu** (USB Host için)
-- **USB UVC Kamera** (MJPEG destekli önerilir)
-- **Pixhawk** veya ArduPilot uyumlu uçuş kontrolcüsü
-- Güç kaynağı (USB kamera için yeterli akım)
+### ESP32-CAM Modülü
+
+![ESP32-CAM](esp32_cam.jpg)
+
+**Özellikler:**
+- ESP32-S (Dual-core 240MHz)
+- 4MB Flash + 4MB PSRAM
+- OV2640 2MP Kamera (dahili)
+- MicroSD kart yuvası
+- Flash LED (GPIO4)
+- Harici anten seçeneği
 
 ### Sistem Diyagramı
 
-![ESP32 RTSP MAVLink System Diagram](esp32_rtsp_mavlink_diagram.jpg)
-
-![ESP32 Usb Connection](ESP32S3-USB-Connections.png)
+![ESP32-CAM RTSP MAVLink System](esp32_cam_rtsp_diagram.svg)
 
 ### Bağlantı Şeması
 
 ```
-ESP32-S3                    USB Kamera
----------                   ----------
-GPIO19 (D-)  <----------->  D-
-GPIO20 (D+)  <----------->  D+
-5V           <----------->  VCC
-GND          <----------->  GND
-
-ESP32-S3                    Pixhawk (TELEM1/TELEM2)
+ESP32-CAM                   Pixhawk (TELEM1/TELEM2)
 ---------                   -----------------------
-GPIO17 (TX)  <----------->  RX
-GPIO18 (RX)  <----------->  TX
-GND          <----------->  GND
+GPIO13 (TX)  ------------->  RX
+GPIO12 (RX)  <-------------  TX
+GND          <------------>  GND
+
+ESP32-CAM                   USB-TTL (Programlama için)
+---------                   ------------------------
+U0T (GPIO1)  ------------->  RX
+U0R (GPIO3)  <-------------  TX
+5V           <------------>  5V
+GND          <------------>  GND
+IO0          -----> GND      (Sadece programlama modunda)
 ```
 
-> ⚠️ USB kamera yüksek akım çekebilir (500mA+). Harici güç kaynağı önerilir.
+> ⚠️ **Programlama Sonrası IO0-GND bağlantısını kaldırın!**
 > ⚠️ Pixhawk ile 3.3V sinyal seviyesi uyumludur, level shifter gerekmez.
+
+### Pin Mapping
+
+| Pin | Fonksiyon | Açıklama |
+|-----|-----------|----------|
+| GPIO0 | XCLK | Kamera clock |
+| GPIO5 | D0 | Kamera data |
+| GPIO18 | D1 | Kamera data |
+| GPIO19 | D2 | Kamera data |
+| GPIO21 | D3 | Kamera data |
+| GPIO36 | D4 | Kamera data |
+| GPIO39 | D5 | Kamera data |
+| GPIO34 | D6 | Kamera data |
+| GPIO35 | D7 | Kamera data |
+| GPIO25 | VSYNC | Kamera sync |
+| GPIO23 | HREF | Kamera sync |
+| GPIO22 | PCLK | Kamera clock |
+| GPIO26 | SDA | Kamera I2C |
+| GPIO27 | SCL | Kamera I2C |
+| GPIO32 | PWDN | Kamera power |
+| GPIO4 | FLASH | Flash LED |
+| GPIO33 | LED | Dahili LED |
+| GPIO12 | TX | MAVLink TX → Pixhawk RX |
+| GPIO13 | RX | MAVLink RX ← Pixhawk TX |
 
 ## 📡 Ağ Yapılandırması
 
 | Parametre | Değer |
 |-----------|-------|
-| SSID | ESP32-CAM-RTSP |
+| SSID | PixhawkDrone |
 | Şifre | 12345678 |
 | Gateway IP | 192.168.4.1 |
 | Subnet Mask | 255.255.255.0 |
 | DHCP Aralığı | 192.168.4.100 - 192.168.4.200 |
-| RTSP Port | 554 |
-| RTSP URL | rtsp://192.168.4.1:554/stream |
+| HTTP Stream Port | 554 |
+| Stream URL | http://192.168.4.1:554 |
 | MAVLink UDP | 14550 |
 
 ## 🚀 Kurulum
@@ -65,88 +94,95 @@ GND          <----------->  GND
 ### 1. Gereksinimler
 
 - [PlatformIO](https://platformio.org/) (VSCode eklentisi önerilir)
-- [ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/latest/) v5.0+
+- ESP32-CAM modülü
+- USB-TTL adaptör (FT232RL, CP2102, CH340) **veya** ESP32-CAM-MB
 
 ### 2. Projeyi Klonlayın
 
 ```bash
-git clone https://github.com/your-repo/esp32-usb-cam-rtsp.git
-cd esp32-usb-cam-rtsp
+git clone https://github.com/maren-robotics/esp32cam-rtsp-mavlink.git
+cd esp32cam-rtsp-mavlink
 ```
 
 ### 3. Derleyin ve Yükleyin
+
+**Programlama Bağlantısı (USB-TTL ile):**
+```
+ESP32-CAM    USB-TTL
+---------    -------
+5V      -->  5V
+GND     -->  GND
+U0T     -->  RX
+U0R     -->  TX
+IO0     -->  GND  (programlama modunda)
+```
 
 **PlatformIO ile:**
 ```bash
 # Derleme
 pio run
 
-# Yükleme
+# Yükleme (IO0-GND bağlıyken RST'ye basın)
 pio run --target upload
 
 # Serial monitor
 pio device monitor
 ```
 
-**ESP-IDF ile:**
-```bash
-idf.py set-target esp32s3
-idf.py build
-idf.py flash monitor
-```
+> 💡 **ESP32-CAM-MB** adaptörünüz varsa, sadece USB takıp yükleyebilirsiniz.
 
 ## 📺 Kullanım
 
-### 1. ESP32-S3'ü Başlatın
+### 1. ESP32-CAM'i Başlatın
 
-Cihaz başladığında serial monitörde şu bilgileri göreceksiniz:
+Cihaz başladığında serial monitörde şunları göreceksiniz:
 
 ```
-╔════════════════════════════════════════════╗
-║      ESP32-S3 USB Camera RTSP Streamer     ║
-╠════════════════════════════════════════════╣
-║  WiFi AP:                                  ║
-║    SSID: ESP32-CAM-RTSP                    ║
-║    Pass: 12345678                          ║
-║    IP:   192.168.4.1                       ║
-╠════════════════════════════════════════════╣
-║  RTSP Stream:                              ║
-║    URL: rtsp://192.168.4.1:554/stream      ║
-╚════════════════════════════════════════════╝
+========================================
+   ESP32-CAM RTSP + MAVLink System
+========================================
+Free heap: 267120 bytes
+WiFi AP: PixhawkDrone
+IP: 192.168.4.1
+MAVLink: UDP port 14550
+RTSP: http://192.168.4.1:554
+Camera: OV2640 VGA 15fps
+========================================
+System ready!
 ```
 
 ### 2. WiFi'ye Bağlanın
 
-Telefonunuz veya bilgisayarınızdan **ESP32-CAM-RTSP** ağına bağlanın.
+Telefonunuz veya bilgisayarınızdan **PixhawkDrone** ağına bağlanın.
+- Şifre: `12345678`
 
 ### 3. Stream'i İzleyin
+
+**Web Tarayıcı ile:**
+```
+http://192.168.4.1:554
+```
 
 **VLC Media Player ile:**
 ```
 Media > Open Network Stream
-URL: rtsp://192.168.4.1:554/stream
+URL: http://192.168.4.1:554
 ```
 
 **FFplay ile:**
 ```bash
-ffplay rtsp://192.168.4.1:554/stream
-```
-
-**GStreamer ile:**
-```bash
-gst-launch-1.0 rtspsrc location=rtsp://192.168.4.1:554/stream ! \
-    rtpjpegdepay ! jpegdec ! autovideosink
+ffplay http://192.168.4.1:554
 ```
 
 **OpenCV (Python) ile:**
 ```python
 import cv2
 
-cap = cv2.VideoCapture('rtsp://192.168.4.1:554/stream')
+cap = cv2.VideoCapture('http://192.168.4.1:554')
 while True:
     ret, frame = cap.read()
     if ret:
-        cv2.imshow('ESP32 Camera', frame)
+        cv2.imshow('ESP32-CAM', frame)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 cap.release()
@@ -154,7 +190,6 @@ cap.release()
 
 ### 4. QGroundControl ile Telemetri
 
-**QGroundControl Ayarları:**
 1. QGroundControl'u açın
 2. Application Settings > Comm Links
 3. "Add" butonuna tıklayın
@@ -162,59 +197,46 @@ cap.release()
    - Name: ESP32-Pixhawk
    - Type: UDP
    - Port: 14550
-   - Server Address: (boş bırakın)
 5. "Connect" butonuna tıklayın
 
-**Mission Planner Ayarları:**
-1. Mission Planner'ı açın
-2. Sağ üstteki bağlantı kutusundan "UDP" seçin
-3. Port: 14550
-4. "Connect" butonuna tıklayın
-
-**MAVProxy ile:**
-```bash
-mavproxy.py --master=udp:192.168.4.1:14550
-```
+**Mission Planner ile:**
+1. Sağ üstteki bağlantı kutusundan "UDP" seçin
+2. Port: 14550
+3. "Connect" butonuna tıklayın
 
 ## ⚙️ Yapılandırma
 
-`platformio.ini` dosyasındaki build flags ile ayarları değiştirebilirsiniz:
+`platformio.ini` dosyasında:
 
 ```ini
 build_flags = 
     ; WiFi AP ayarları
-    -DWIFI_AP_SSID=\"MyCamera\"
+    -DWIFI_AP_SSID=\"MyDrone\"
     -DWIFI_AP_PASS=\"mypassword123\"
-    -DWIFI_AP_CHANNEL=11
+    -DWIFI_AP_CHANNEL=6
     
-    ; Kamera ayarları
-    -DCAM_FRAME_WIDTH=1280
-    -DCAM_FRAME_HEIGHT=720
-    -DCAM_FPS=30
-    
-    ; RTSP ayarları
-    -DRTSP_PORT=8554
-    -DRTSP_STREAM_NAME=\"/live\"
+    ; Kamera ayarları (VGA önerilir)
+    ; FRAMESIZE_VGA (640x480)
+    ; FRAMESIZE_SVGA (800x600)
+    ; FRAMESIZE_XGA (1024x768)
+    ; FRAMESIZE_HD (1280x720)
     
     ; MAVLink ayarları
-    -DMAVLINK_UART_NUM=1          ; UART numarası (0, 1, veya 2)
-    -DMAVLINK_UART_TX_PIN=17      ; ESP32 TX -> Pixhawk RX
-    -DMAVLINK_UART_RX_PIN=18      ; ESP32 RX -> Pixhawk TX  
-    -DMAVLINK_UART_BAUD=115200    ; Baud rate (Pixhawk ile eşleşmeli)
-    -DMAVLINK_UDP_PORT=14550      ; GCS UDP portu
+    -DMAVLINK_UART_TX_PIN=13
+    -DMAVLINK_UART_RX_PIN=12
+    -DMAVLINK_UART_BAUD=115200
+    -DMAVLINK_UDP_PORT=14550
 ```
 
-### Pixhawk TELEM Port Yapılandırması
+### Pixhawk TELEM Port Ayarları
 
-Pixhawk'ta telemetri portunu yapılandırmak için:
-
-**ArduPilot için (Mission Planner):**
+**ArduPilot (Mission Planner):**
 ```
 SERIAL1_PROTOCOL = 2 (MAVLink2)
 SERIAL1_BAUD = 115
 ```
 
-**PX4 için (QGroundControl):**
+**PX4 (QGroundControl):**
 ```
 MAV_0_CONFIG = TELEM1
 SER_TEL1_BAUD = 115200
@@ -222,74 +244,63 @@ SER_TEL1_BAUD = 115200
 
 ## 📊 Performans
 
-| Çözünürlük | FPS | Bant Genişliği |
-|------------|-----|----------------|
-| 640x480 | 30 | ~2-4 Mbps |
-| 800x600 | 25 | ~3-5 Mbps |
-| 1280x720 | 15 | ~4-8 Mbps |
-| 1920x1080 | 10 | ~6-12 Mbps |
+| Çözünürlük | FPS | Bant Genişliği | Notlar |
+|------------|-----|----------------|--------|
+| QQVGA (160x120) | 30 | ~0.5 Mbps | Düşük gecikme |
+| QVGA (320x240) | 30 | ~1 Mbps | Dengeli |
+| VGA (640x480) | 15-25 | ~2-3 Mbps | **Önerilen** |
+| SVGA (800x600) | 12-15 | ~3-4 Mbps | İyi kalite |
+| XGA (1024x768) | 8-12 | ~4-5 Mbps | Yüksek kalite |
+| HD (1280x720) | 5-8 | ~5-6 Mbps | PSRAM gerekli |
 
-> Performans kamera modeline ve MJPEG sıkıştırma kalitesine göre değişir.
+## 🔧 Sorun Giderme
 
-## 🔍 Sorun Giderme
-
-### Kamera algılanmıyor
-- USB OTG kablosunun doğru bağlandığından emin olun
-- Kameranın UVC uyumlu olduğunu kontrol edin
-- `lsusb` ile kameranın tanınıp tanınmadığını kontrol edin
+### Kamera başlatılamıyor
+- Kamera ribbon kablosunun düzgün takıldığından emin olun
+- Konnektörün kilidinin kapalı olduğunu kontrol edin
+- `Camera init failed` hatası alıyorsanız ribbon kabloyu çıkarıp tekrar takın
 
 ### Stream açılmıyor
-- WiFi bağlantısını kontrol edin
-- Ping testi yapın: `ping 192.168.4.1`
+- WiFi bağlantısını kontrol edin: `ping 192.168.4.1`
+- Tarayıcıda `http://192.168.4.1:554` açın
 - Firewall ayarlarını kontrol edin
 
 ### Düşük FPS
-- Çözünürlüğü azaltın
-- MJPEG formatını kullanın (YUV değil)
+- Çözünürlüğü VGA (640x480) veya altına düşürün
+- JPEG quality değerini artırın (10-63, düşük=daha iyi kalite ama daha büyük dosya)
 - Tek istemci ile test edin
 
-### Bellek hatası
-- PSRAM'ın aktif olduğundan emin olun
-- Frame buffer sayısını azaltın
-- Çözünürlüğü düşürün
-
 ### Pixhawk bağlanmıyor
-- TX/RX kablolarının çapraz bağlandığından emin olun (ESP32 TX -> Pixhawk RX)
-- Baud rate'in eşleştiğini kontrol edin (varsayılan 115200)
-- Pixhawk'ta telemetri portunun MAVLink olarak yapılandırıldığını doğrulayın
-- Serial monitörde heartbeat mesajları görünmeli
+- TX/RX kablolarının çapraz bağlandığından emin olun
+- Baud rate'in eşleştiğini kontrol edin (115200)
+- GND bağlantısını kontrol edin
 
-### QGroundControl bağlanmıyor
-- WiFi'ye bağlı olduğunuzdan emin olun
-- UDP portunu 14550 olarak ayarlayın
-- Firewall'un UDP 14550'yi engellememediğinden emin olun
-- "Autoconnect" seçeneğini devre dışı bırakıp manuel bağlanın
-
-### Telemetri gecikmesi
-- Baud rate'i artırın (921600 destekleniyorsa)
-- Gereksiz telemetri stream'lerini Pixhawk'ta devre dışı bırakın
-- WiFi kanalını daha az kalabalık bir kanala değiştirin
+### Programlama hatası
+- IO0 pinin GND'ye bağlı olduğundan emin olun
+- RST butonuna basın veya güç döngüsü yapın
+- Upload başlamadan önce "Connecting..." mesajını bekleyin
 
 ## 📁 Proje Yapısı
 
 ```
-esp32-usb-cam-rtsp/
+esp32cam-rtsp-mavlink/
 ├── include/
 │   ├── wifi_ap.h             # WiFi AP modülü
-│   ├── usb_camera.h          # USB kamera modülü
-│   ├── rtsp_server.h         # RTSP server modülü
-│   ├── mavlink_telemetry.h   # MAVLink köprü modülü
-│   └── mavlink_types.h       # MAVLink protokol tanımları
+│   ├── ov2640_camera.h       # OV2640 kamera modülü
+│   ├── rtsp_server.h         # HTTP MJPEG server
+│   └── mavlink_telemetry.h   # MAVLink köprü modülü
 ├── src/
 │   ├── main.c                # Ana uygulama
 │   ├── wifi_ap.c             # WiFi implementasyonu
-│   ├── usb_camera.c          # USB kamera implementasyonu
-│   ├── rtsp_server.c         # RTSP implementasyonu
-│   └── mavlink_telemetry.c   # MAVLink implementasyonu
-├── .vscode/                  # VSCode ayarları
+│   ├── ov2640_camera.c       # Kamera implementasyonu
+│   ├── rtsp_server.c         # MJPEG server implementasyonu
+│   ├── mavlink_telemetry.c   # MAVLink implementasyonu
+│   ├── idf_component.yml     # esp32-camera bağımlılığı
+│   └── CMakeLists.txt        # Build config
 ├── platformio.ini            # PlatformIO yapılandırması
-├── partitions.csv            # Partition tablosu
 ├── sdkconfig.defaults        # ESP-IDF varsayılanları
+├── esp32_cam.jpg             # Donanım resmi
+├── esp32_cam_rtsp_diagram.svg # Sistem diyagramı
 └── README.md                 # Bu dosya
 ```
 
@@ -307,8 +318,7 @@ MIT License - Özgürce kullanın ve geliştirin!
 
 ## 📚 Referanslar
 
+- [ESP32-CAM Datasheet](https://docs.ai-thinker.com/esp32-cam)
 - [ESP-IDF Programming Guide](https://docs.espressif.com/projects/esp-idf/en/latest/)
-- [USB Host Library](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/api-reference/peripherals/usb_host.html)
-- [RFC 2326 - RTSP](https://tools.ietf.org/html/rfc2326)
-- [RFC 3550 - RTP](https://tools.ietf.org/html/rfc3550)
-- [RFC 2435 - RTP Payload for JPEG](https://tools.ietf.org/html/rfc2435)
+- [esp32-camera Library](https://github.com/espressif/esp32-camera)
+- [MAVLink Protocol](https://mavlink.io/en/)
