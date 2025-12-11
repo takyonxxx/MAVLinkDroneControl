@@ -7,8 +7,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var mavlinkManager: MAVLinkManager
-    @State private var connectionHost = "192.168.4.1"
-    @State private var connectionPort = "14550"
+    @StateObject private var settings = SettingsManager.shared
     @State private var showParameters = false
     
     var body: some View {
@@ -16,7 +15,13 @@ struct SettingsView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     // Connection Settings
-                    ConnectionCard(host: $connectionHost, port: $connectionPort)
+                    ConnectionCard(
+                        host: $settings.connectionHost,
+                        port: $settings.connectionPort
+                    )
+                    
+                    // Video Stream Settings
+                    VideoStreamCard(rtspURL: $settings.rtspURL)
                     
                     // Telemetry Status
                     TelemetryStatusCard()
@@ -45,7 +50,7 @@ struct ConnectionCard: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Label("Connection", systemImage: "network")
+            Label("MAVLink Connection", systemImage: "network")
                 .font(.system(size: 18, weight: .bold))
                 .foregroundColor(.white)
             
@@ -80,6 +85,151 @@ struct ConnectionCard: View {
         .padding(16)
         .background(Color(red: 0.1, green: 0.1, blue: 0.15))
         .cornerRadius(12)
+    }
+}
+
+// MARK: - Video Stream Card
+struct VideoStreamCard: View {
+    @Binding var rtspURL: String
+    @State private var tempURL: String = ""
+    @State private var isEditing = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Label("Video Stream", systemImage: "video.fill")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(.white)
+                
+                Spacer()
+                
+                // Edit/Save button
+                Button(action: {
+                    if isEditing {
+                        // Save the new URL
+                        rtspURL = tempURL
+                        isEditing = false
+                    } else {
+                        // Start editing
+                        tempURL = rtspURL
+                        isEditing = true
+                    }
+                }) {
+                    Text(isEditing ? "Kaydet" : "Düzenle")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.cyan)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.cyan.opacity(0.2))
+                        .cornerRadius(8)
+                }
+            }
+            
+            VStack(spacing: 12) {
+                // Current URL Display or Edit Field
+                if isEditing {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("RTSP URL")
+                            .font(.system(size: 13))
+                            .foregroundColor(.gray)
+                        
+                        TextField("rtsp://192.168.4.1:554/stream", text: $tempURL)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .font(.system(size: 13, design: .monospaced))
+                            #if os(iOS)
+                            .keyboardType(.URL)
+                            .autocapitalization(.none)
+                            #endif
+                        
+                        // Common presets
+                        Text("Hazır Şablonlar:")
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
+                            .padding(.top, 4)
+                        
+                        VStack(spacing: 6) {
+                            URLPresetButton(
+                                title: "ESP32 (WiFi)",
+                                url: "rtsp://192.168.4.1:554/stream"
+                            ) {
+                                tempURL = "rtsp://192.168.4.1:554/stream"
+                            }
+                            
+                            URLPresetButton(
+                                title: "SIYI Kamera",
+                                url: "rtsp://192.168.144.25:8554/main.264"
+                            ) {
+                                tempURL = "rtsp://192.168.144.25:8554/main.264"
+                            }
+                            
+                            URLPresetButton(
+                                title: "BlueOS",
+                                url: "rtsp://192.168.2.2:8554/video"
+                            ) {
+                                tempURL = "rtsp://192.168.2.2:8554/video"
+                            }
+                        }
+                    }
+                } else {
+                    // Display current URL
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Aktif URL")
+                            .font(.system(size: 13))
+                            .foregroundColor(.gray)
+                        
+                        Text(rtspURL)
+                            .font(.system(size: 13, design: .monospaced))
+                            .foregroundColor(.cyan)
+                            .padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(red: 0.15, green: 0.15, blue: 0.2))
+                            .cornerRadius(8)
+                    }
+                }
+                
+                // Info text
+                HStack(spacing: 6) {
+                    Image(systemName: "info.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(.blue)
+                    
+                    Text("URL değişikliği video akışını otomatik olarak yeniden başlatır")
+                        .font(.system(size: 11))
+                        .foregroundColor(.gray)
+                }
+            }
+        }
+        .padding(16)
+        .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+        .cornerRadius(12)
+    }
+}
+
+// MARK: - URL Preset Button
+struct URLPresetButton: View {
+    let title: String
+    let url: String
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.white)
+                    Text(url)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundColor(.gray)
+                }
+                Spacer()
+                Image(systemName: "arrow.right.circle.fill")
+                    .foregroundColor(.cyan)
+            }
+            .padding(10)
+            .background(Color(red: 0.15, green: 0.15, blue: 0.2))
+            .cornerRadius(8)
+        }
     }
 }
 

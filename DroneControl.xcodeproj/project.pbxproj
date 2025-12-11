@@ -7,28 +7,40 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		342E1B33CF22F7230F96C47A /* MAVLinkProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = C047821F89B40AAA79C1E6CC /* MAVLinkProtocol.swift */; };
+		38BC820555B3377A78682069 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58CC8ABCC49EBB75E19499DB /* SettingsView.swift */; };
+		4C39DE3826FE5C8FB334742C /* MAVLinkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA0619F09DCF953B0DE76FD2 /* MAVLinkManager.swift */; };
+		5F4847FAE7DDCCA2E90DB46E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 10323E0AE18C737D179DE0C4 /* Assets.xcassets */; };
+		70016879C23BB2A138583A96 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EB8D06DA1A4E034E72D7921 /* ContentView.swift */; };
+		743E2CC906AE3AAD2CB92A43 /* FlightModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 724A8B5E83C38B664385DAD3 /* FlightModeView.swift */; };
+		7973F9C6882B1A25F70FA7F7 /* JoystickView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 071BB79654658DFAC1B3D53B /* JoystickView.swift */; };
+		8B294186C87E5F26FB685F35 /* ServoMonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB937ACECF12A96C94E682A1 /* ServoMonitorView.swift */; };
 		9C8154FF2EE74BF1004EEB8A /* MapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C8154FE2EE74BF1004EEB8A /* MapView.swift */; };
 		9C8155002EE74BF1004EEB8A /* EnhancedMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C8154FD2EE74BF1004EEB8A /* EnhancedMapView.swift */; };
 		9C8155082EE74D70004EEB8A /* MapModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C8155072EE74D70004EEB8A /* MapModels.swift */; };
 		9CC5ADCB2EE43D050021F292 /* AttitudeIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CC5ADCA2EE43D050021F292 /* AttitudeIndicator.swift */; };
 		9CC5ADCD2EE43D270021F292 /* MainDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CC5ADCC2EE43D270021F292 /* MainDashboardView.swift */; };
 		9CC5ADCF2EE445400021F292 /* StatusBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CC5ADCE2EE445400021F292 /* StatusBar.swift */; };
+		9CE33AEF2EEB2F400056073C /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CE33AEE2EEB2F400056073C /* SettingsManager.swift */; };
 		A6C03FAB3640D8EB35C69E8B /* DroneControlApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2311F05382E3E35ABA13412D /* DroneControlApp.swift */; };
-		70016879C23BB2A138583A96 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EB8D06DA1A4E034E72D7921 /* ContentView.swift */; };
-		342E1B33CF22F7230F96C47A /* MAVLinkProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = C047821F89B40AAA79C1E6CC /* MAVLinkProtocol.swift */; };
-		BB1F01B3F288919D0206F4B2 /* UDPConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45D3CD6A9DE34134CD2CF226 /* UDPConnection.swift */; };
-		4C39DE3826FE5C8FB334742C /* MAVLinkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA0619F09DCF953B0DE76FD2 /* MAVLinkManager.swift */; };
-		7973F9C6882B1A25F70FA7F7 /* JoystickView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 071BB79654658DFAC1B3D53B /* JoystickView.swift */; };
-		8B294186C87E5F26FB685F35 /* ServoMonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB937ACECF12A96C94E682A1 /* ServoMonitorView.swift */; };
-		743E2CC906AE3AAD2CB92A43 /* FlightModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 724A8B5E83C38B664385DAD3 /* FlightModeView.swift */; };
-		F870771B72104EB36B5FD4B8 /* ConnectionStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B4BAB5B509BAF9C5F59A66 /* ConnectionStatusView.swift */; };
 		A92954C96BE9E98870DD4C36 /* ControlPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81498F5922D9EF486B170AC0 /* ControlPanelView.swift */; };
-		5F4847FAE7DDCCA2E90DB46E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 10323E0AE18C737D179DE0C4 /* Assets.xcassets */; };
-		38BC820555B3377A78682069 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58CC8ABCC49EBB75E19499DB /* SettingsView.swift */; };
+		BB1F01B3F288919D0206F4B2 /* UDPConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45D3CD6A9DE34134CD2CF226 /* UDPConnection.swift */; };
 		EB507FFD6E410372F5FA1A3D /* VideoStreamView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ADD253A3CC449AC4056CE2A /* VideoStreamView.swift */; };
+		F870771B72104EB36B5FD4B8 /* ConnectionStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B4BAB5B509BAF9C5F59A66 /* ConnectionStatusView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		071BB79654658DFAC1B3D53B /* JoystickView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoystickView.swift; sourceTree = "<group>"; };
+		10323E0AE18C737D179DE0C4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		2311F05382E3E35ABA13412D /* DroneControlApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DroneControlApp.swift; sourceTree = "<group>"; };
+		38B4BAB5B509BAF9C5F59A66 /* ConnectionStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStatusView.swift; sourceTree = "<group>"; };
+		45D3CD6A9DE34134CD2CF226 /* UDPConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UDPConnection.swift; sourceTree = "<group>"; };
+		53EB48A50CA8175599BE4238 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		58CC8ABCC49EBB75E19499DB /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		724A8B5E83C38B664385DAD3 /* FlightModeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlightModeView.swift; sourceTree = "<group>"; };
+		81498F5922D9EF486B170AC0 /* ControlPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlPanelView.swift; sourceTree = "<group>"; };
+		8EB8D06DA1A4E034E72D7921 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		9ADD253A3CC449AC4056CE2A /* VideoStreamView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoStreamView.swift; sourceTree = "<group>"; };
 		9C8154FD2EE74BF1004EEB8A /* EnhancedMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnhancedMapView.swift; sourceTree = "<group>"; };
 		9C8154FE2EE74BF1004EEB8A /* MapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapView.swift; sourceTree = "<group>"; };
 		9C8155072EE74D70004EEB8A /* MapModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapModels.swift; sourceTree = "<group>"; };
@@ -36,21 +48,11 @@
 		9CC5ADCA2EE43D050021F292 /* AttitudeIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttitudeIndicator.swift; sourceTree = "<group>"; };
 		9CC5ADCC2EE43D270021F292 /* MainDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainDashboardView.swift; sourceTree = "<group>"; };
 		9CC5ADCE2EE445400021F292 /* StatusBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBar.swift; sourceTree = "<group>"; };
-		2311F05382E3E35ABA13412D /* DroneControlApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DroneControlApp.swift; sourceTree = "<group>"; };
-		8EB8D06DA1A4E034E72D7921 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		C047821F89B40AAA79C1E6CC /* MAVLinkProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MAVLinkProtocol.swift; sourceTree = "<group>"; };
-		45D3CD6A9DE34134CD2CF226 /* UDPConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UDPConnection.swift; sourceTree = "<group>"; };
+		9CE33AEE2EEB2F400056073C /* SettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManager.swift; sourceTree = "<group>"; };
 		BA0619F09DCF953B0DE76FD2 /* MAVLinkManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MAVLinkManager.swift; sourceTree = "<group>"; };
-		071BB79654658DFAC1B3D53B /* JoystickView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoystickView.swift; sourceTree = "<group>"; };
 		BB937ACECF12A96C94E682A1 /* ServoMonitorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServoMonitorView.swift; sourceTree = "<group>"; };
-		724A8B5E83C38B664385DAD3 /* FlightModeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlightModeView.swift; sourceTree = "<group>"; };
-		38B4BAB5B509BAF9C5F59A66 /* ConnectionStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStatusView.swift; sourceTree = "<group>"; };
-		81498F5922D9EF486B170AC0 /* ControlPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlPanelView.swift; sourceTree = "<group>"; };
-		10323E0AE18C737D179DE0C4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		53EB48A50CA8175599BE4238 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		58CC8ABCC49EBB75E19499DB /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		C047821F89B40AAA79C1E6CC /* MAVLinkProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MAVLinkProtocol.swift; sourceTree = "<group>"; };
 		CA39A6C158533A30C36017F4 /* DroneControl.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DroneControl.entitlements; sourceTree = "<group>"; };
-		9ADD253A3CC449AC4056CE2A /* VideoStreamView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoStreamView.swift; sourceTree = "<group>"; };
 		ECF3F6EDA3A4710E2C472690 /* DroneControl.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DroneControl.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -65,38 +67,6 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		9C8155062EE74D42004EEB8A /* Models */ = {
-			isa = PBXGroup;
-			children = (
-				9C8155072EE74D70004EEB8A /* MapModels.swift */,
-			);
-			path = Models;
-			sourceTree = "<group>";
-		};
-		F735C7E49737A442E6F800F6 = {
-			isa = PBXGroup;
-			children = (
-				D8DC95104139FDD973649491 /* DroneControl */,
-				80F8CB8DF072905C07A76BF2 /* Products */,
-			);
-			sourceTree = "<group>";
-		};
-		D8DC95104139FDD973649491 /* DroneControl */ = {
-			isa = PBXGroup;
-			children = (
-				9C8155062EE74D42004EEB8A /* Models */,
-				2311F05382E3E35ABA13412D /* DroneControlApp.swift */,
-				8EB8D06DA1A4E034E72D7921 /* ContentView.swift */,
-				06CF6D7B039E5E189692C7D9 /* MAVLink */,
-				0CF2AE824241938CAC178AF8 /* Views */,
-				10323E0AE18C737D179DE0C4 /* Assets.xcassets */,
-				53EB48A50CA8175599BE4238 /* Info.plist */,
-				CA39A6C158533A30C36017F4 /* DroneControl.entitlements */,
-				9CC5ADC92EE39DFA0021F292 /* DroneControl-Bridging-Header.h */,
-			);
-			path = DroneControl;
-			sourceTree = "<group>";
-		};
 		06CF6D7B039E5E189692C7D9 /* MAVLink */ = {
 			isa = PBXGroup;
 			children = (
@@ -132,6 +102,39 @@
 				ECF3F6EDA3A4710E2C472690 /* DroneControl.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		9C8155062EE74D42004EEB8A /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				9C8155072EE74D70004EEB8A /* MapModels.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		D8DC95104139FDD973649491 /* DroneControl */ = {
+			isa = PBXGroup;
+			children = (
+				9CE33AEE2EEB2F400056073C /* SettingsManager.swift */,
+				9C8155062EE74D42004EEB8A /* Models */,
+				2311F05382E3E35ABA13412D /* DroneControlApp.swift */,
+				8EB8D06DA1A4E034E72D7921 /* ContentView.swift */,
+				06CF6D7B039E5E189692C7D9 /* MAVLink */,
+				0CF2AE824241938CAC178AF8 /* Views */,
+				10323E0AE18C737D179DE0C4 /* Assets.xcassets */,
+				53EB48A50CA8175599BE4238 /* Info.plist */,
+				CA39A6C158533A30C36017F4 /* DroneControl.entitlements */,
+				9CC5ADC92EE39DFA0021F292 /* DroneControl-Bridging-Header.h */,
+			);
+			path = DroneControl;
+			sourceTree = "<group>";
+		};
+		F735C7E49737A442E6F800F6 = {
+			isa = PBXGroup;
+			children = (
+				D8DC95104139FDD973649491 /* DroneControl */,
+				80F8CB8DF072905C07A76BF2 /* Products */,
+			);
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -211,6 +214,7 @@
 				9C8155082EE74D70004EEB8A /* MapModels.swift in Sources */,
 				4C39DE3826FE5C8FB334742C /* MAVLinkManager.swift in Sources */,
 				7973F9C6882B1A25F70FA7F7 /* JoystickView.swift in Sources */,
+				9CE33AEF2EEB2F400056073C /* SettingsManager.swift in Sources */,
 				9CC5ADCF2EE445400021F292 /* StatusBar.swift in Sources */,
 				9C8154FF2EE74BF1004EEB8A /* MapView.swift in Sources */,
 				9C8155002EE74BF1004EEB8A /* EnhancedMapView.swift in Sources */,
@@ -220,7 +224,7 @@
 				F870771B72104EB36B5FD4B8 /* ConnectionStatusView.swift in Sources */,
 				A92954C96BE9E98870DD4C36 /* ControlPanelView.swift in Sources */,
 				38BC820555B3377A78682069 /* SettingsView.swift in Sources */,
-					EB507FFD6E410372F5FA1A3D /* VideoStreamView.swift in Sources */,
+				EB507FFD6E410372F5FA1A3D /* VideoStreamView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

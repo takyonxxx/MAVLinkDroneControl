@@ -3,7 +3,7 @@
 //  DroneControl
 //
 //  Live RTSP video stream with telemetry overlay
-//  Stream URL: rtsp://192.168.4.1:554/stream (ESP32 WiFi)
+//  Stream URL configurable via Settings (saved in UserDefaults)
 //
 
 import SwiftUI
@@ -14,6 +14,7 @@ import AVFoundation
 struct VideoStreamView: View {
     @ObservedObject var mavlinkManager: MAVLinkManager
     @StateObject private var videoPlayer = VideoPlayerManager()
+    @StateObject private var settings = SettingsManager.shared
     @State private var isFullscreen = false
     @State private var showControls = true
     @State private var currentTime = Date()
@@ -129,9 +130,12 @@ struct VideoStreamView: View {
                 
                 // No Signal Overlay
                 if !videoPlayer.isPlaying && !videoPlayer.isConnecting {
-                    NoSignalOverlay(onRetry: {
-                        videoPlayer.reconnect()
-                    })
+                    NoSignalOverlay(
+                        currentURL: settings.rtspURL,
+                        onRetry: {
+                            videoPlayer.reconnect()
+                        }
+                    )
                 }
                 
                 // Loading Overlay
@@ -149,10 +153,14 @@ struct VideoStreamView: View {
             currentTime = time
         }
         .onAppear {
-            videoPlayer.setupPlayer()
+            videoPlayer.setupPlayer(url: settings.rtspURL)
         }
         .onDisappear {
             videoPlayer.stop()
+        }
+        .onChange(of: settings.rtspURL) { newURL in
+            // URL changed in settings, reconnect with new URL
+            videoPlayer.reconnect(newURL: newURL)
         }
     }
 }
@@ -164,12 +172,14 @@ class VideoPlayerManager: ObservableObject {
     @Published var isConnecting = false
     @Published var hasError = false
     
-    private let rtspURL = "rtsp://192.168.4.1:554/stream"
+    private var currentRTSPURL = ""
     private var playerItem: AVPlayerItem?
     private var playerObserver: Any?
     
-    func setupPlayer() {
-        guard let url = URL(string: rtspURL) else {
+    func setupPlayer(url: String) {
+        currentRTSPURL = url
+        
+        guard let videoURL = URL(string: url) else {
             hasError = true
             return
         }
@@ -177,7 +187,7 @@ class VideoPlayerManager: ObservableObject {
         isConnecting = true
         
         // Create asset with network options
-        let asset = AVURLAsset(url: url, options: [
+        let asset = AVURLAsset(url: videoURL, options: [
             "AVURLAssetHTTPHeaderFieldsKey": [:],
             AVURLAssetPreferPreciseDurationAndTimingKey: false
         ])
@@ -223,7 +233,7 @@ class VideoPlayerManager: ObservableObject {
     
     func play() {
         if player == nil {
-            setupPlayer()
+            setupPlayer(url: currentRTSPURL)
         } else {
             player?.play()
             isPlaying = true
@@ -240,79 +250,138 @@ class VideoPlayerManager: ObservableObject {
         player = nil
         playerItem = nil
         isPlaying = false
+        isConnecting = false
     }
     
-    func reconnect() {
+    func reconnect(newURL: String? = nil) {
         stop()
-        hasError = false
-        setupPlayer()
+        
+        // Wait a bit before reconnecting
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            if let url = newURL {
+                self?.setupPlayer(url: url)
+            } else if let currentURL = self?.currentRTSPURL {
+                self?.setupPlayer(url: currentURL)
+            }
+        }
+    }
+    
+    deinit {
+        stop()
     }
 }
 
-// MARK: - Video Player UIKit Wrapper
-struct VideoPlayerView: UIViewControllerRepresentable {
+// MARK: - Video Player View (UIKit/AppKit Bridge)
+struct VideoPlayerView: View {
     let player: AVPlayer?
     
-    func makeUIViewController(context: Context) -> AVPlayerViewController {
-        let controller = AVPlayerViewController()
-        controller.player = player
-        controller.showsPlaybackControls = false
-        controller.videoGravity = .resizeAspect
-        controller.view.backgroundColor = .black
-        return controller
-    }
-    
-    func updateUIViewController(_ uiViewController: AVPlayerViewController, context: Context) {
-        uiViewController.player = player
+    var body: some View {
+        if let player = player {
+            #if os(iOS)
+            VideoPlayerUIView(player: player)
+            #else
+            VideoPlayerNSView(player: player)
+            #endif
+        } else {
+            Color.black
+        }
     }
 }
 
-// MARK: - Date Time Overlay (Turkey Format)
+#if os(iOS)
+import UIKit
+
+struct VideoPlayerUIView: UIViewRepresentable {
+    let player: AVPlayer
+    
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        let playerLayer = AVPlayerLayer(player: player)
+        playerLayer.videoGravity = .resizeAspect
+        view.layer.addSublayer(playerLayer)
+        context.coordinator.playerLayer = playerLayer
+        return view
+    }
+    
+    func updateUIView(_ uiView: UIView, context: Context) {
+        if let playerLayer = context.coordinator.playerLayer {
+            playerLayer.frame = uiView.bounds
+        }
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+    
+    class Coordinator {
+        var playerLayer: AVPlayerLayer?
+    }
+}
+#else
+import AppKit
+
+struct VideoPlayerNSView: NSViewRepresentable {
+    let player: AVPlayer
+    
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        let playerLayer = AVPlayerLayer(player: player)
+        playerLayer.videoGravity = .resizeAspect
+        view.wantsLayer = true
+        view.layer?.addSublayer(playerLayer)
+        context.coordinator.playerLayer = playerLayer
+        return view
+    }
+    
+    func updateNSView(_ nsView: NSView, context: Context) {
+        if let playerLayer = context.coordinator.playerLayer {
+            playerLayer.frame = nsView.bounds
+        }
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+    
+    class Coordinator {
+        var playerLayer: AVPlayerLayer?
+    }
+}
+#endif
+
+// MARK: - Date Time Overlay
 struct DateTimeOverlay: View {
     let currentTime: Date
     
-    private var turkeyDateFormatter: DateFormatter {
+    private var dateFormatter: DateFormatter {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "tr_TR")
-        formatter.timeZone = TimeZone(identifier: "Europe/Istanbul")
         formatter.dateFormat = "dd.MM.yyyy"
+        formatter.locale = Locale(identifier: "tr_TR")
         return formatter
     }
     
-    private var turkeyTimeFormatter: DateFormatter {
+    private var timeFormatter: DateFormatter {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "tr_TR")
-        formatter.timeZone = TimeZone(identifier: "Europe/Istanbul")
         formatter.dateFormat = "HH:mm:ss"
+        formatter.locale = Locale(identifier: "tr_TR")
         return formatter
     }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 6) {
-                Image(systemName: "calendar")
-                    .font(.system(size: 10))
-                    .foregroundColor(.cyan)
-                Text(turkeyDateFormatter.string(from: currentTime))
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
-                    .foregroundColor(.white)
-            }
+            Text(dateFormatter.string(from: currentTime))
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .foregroundColor(.white)
             
-            HStack(spacing: 6) {
-                Image(systemName: "clock.fill")
-                    .font(.system(size: 10))
-                    .foregroundColor(.cyan)
-                Text(turkeyTimeFormatter.string(from: currentTime))
-                    .font(.system(size: 14, weight: .bold, design: .monospaced))
-                    .foregroundColor(.white)
-            }
+            Text(timeFormatter.string(from: currentTime))
+                .font(.system(size: 13, weight: .bold, design: .monospaced))
+                .foregroundColor(.cyan)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(.black.opacity(0.6))
-                .shadow(color: .black.opacity(0.3), radius: 4)
         )
     }
 }
@@ -323,38 +392,29 @@ struct ConnectionIndicator: View {
     let isStreaming: Bool
     
     var body: some View {
-        HStack(spacing: 8) {
-            // MAVLink Connection
+        HStack(spacing: 10) {
+            // MAVLink Status
             HStack(spacing: 4) {
                 Circle()
                     .fill(isConnected ? Color.green : Color.red)
                     .frame(width: 8, height: 8)
-                Text("MAV")
-                    .font(.system(size: 10, weight: .semibold))
+                    .shadow(color: isConnected ? .green : .red, radius: 4)
+                
+                Text("MAVLink")
+                    .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.white)
             }
             
-            // Video Stream
+            // Stream Status
             HStack(spacing: 4) {
                 Circle()
                     .fill(isStreaming ? Color.green : Color.red)
                     .frame(width: 8, height: 8)
-                Text("VID")
-                    .font(.system(size: 10, weight: .semibold))
+                    .shadow(color: isStreaming ? .green : .red, radius: 4)
+                
+                Text("Video")
+                    .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.white)
-            }
-            
-            // Recording indicator (if streaming)
-            if isStreaming {
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(Color.red)
-                        .frame(width: 8, height: 8)
-                        .opacity(0.8)
-                    Text("REC")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.red)
-                }
             }
         }
         .padding(.horizontal, 10)
@@ -371,30 +431,20 @@ struct VideoTelemetryPanel: View {
     @ObservedObject var mavlinkManager: MAVLinkManager
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            // GPS Coordinates
-            HStack(spacing: 4) {
-                Image(systemName: "location.fill")
-                    .font(.system(size: 10))
-                    .foregroundColor(.cyan)
-                Text(String(format: "%.5f, %.5f", mavlinkManager.latitude, mavlinkManager.longitude))
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundColor(.white)
-            }
-            
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 12) {
                 // Altitude
                 TelemetryItem(
-                    icon: "arrow.up.circle.fill",
+                    icon: "arrow.up",
                     value: String(format: "%.1fm", mavlinkManager.altitude),
-                    color: .green
+                    color: .cyan
                 )
                 
                 // Speed
                 TelemetryItem(
                     icon: "speedometer",
                     value: String(format: "%.1fm/s", mavlinkManager.groundSpeed),
-                    color: .orange
+                    color: .green
                 )
                 
                 // Heading
@@ -556,6 +606,7 @@ struct MiniAttitudeOverlay: View {
 
 // MARK: - No Signal Overlay
 struct NoSignalOverlay: View {
+    let currentURL: String
     let onRetry: () -> Void
     
     var body: some View {
@@ -568,9 +619,11 @@ struct NoSignalOverlay: View {
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(.white)
             
-            Text("rtsp://192.168.4.1:554/stream")
+            Text(currentURL)
                 .font(.system(size: 12, design: .monospaced))
                 .foregroundColor(.gray)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 20)
             
             Button(action: onRetry) {
                 HStack(spacing: 8) {
