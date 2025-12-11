@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 700">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#16213e"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="2" dy="2" stdDeviation="3" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1000" height="700" fill="url(#bgGrad)"/>
+  
+  <!-- Title -->
+  <text x="500" y="40" text-anchor="middle" fill="#00d4aa" font-size="24" font-weight="bold" font-family="Arial">
+    ESP32-CAM RTSP + MAVLink Telemetry System
+  </text>
+  <text x="500" y="65" text-anchor="middle" fill="#888" font-size="14" font-family="Arial">
+    Bağlantı Şeması / Connection Diagram
+  </text>
+  
+  <!-- ESP32-CAM Box -->
+  <rect x="350" y="200" width="300" height="320" rx="15" fill="#1e3a5f" stroke="#00d4aa" stroke-width="2" filter="url(#shadow)"/>
+  <text x="500" y="230" text-anchor="middle" fill="#00d4aa" font-size="18" font-weight="bold" font-family="Arial">ESP32-CAM</text>
+  <text x="500" y="250" text-anchor="middle" fill="#888" font-size="12" font-family="Arial">AI-Thinker Module</text>
+  
+  <!-- OV2640 Camera (inside ESP32-CAM) -->
+  <rect x="380" y="270" width="240" height="50" rx="8" fill="#2d5a3d" stroke="#4ade80" stroke-width="1"/>
+  <text x="500" y="300" text-anchor="middle" fill="#4ade80" font-size="14" font-weight="bold" font-family="Arial">📷 OV2640 Camera</text>
+  <text x="500" y="315" text-anchor="middle" fill="#aaa" font-size="10" font-family="Arial">2MP JPEG • VGA 640x480</text>
+  
+  <!-- WiFi AP -->
+  <rect x="380" y="330" width="240" height="40" rx="8" fill="#4a3f6b" stroke="#a78bfa" stroke-width="1"/>
+  <text x="500" y="355" text-anchor="middle" fill="#a78bfa" font-size="14" font-weight="bold" font-family="Arial">📶 WiFi Access Point</text>
+  
+  <!-- UART MAVLink -->
+  <rect x="380" y="380" width="240" height="40" rx="8" fill="#5a3e3e" stroke="#f87171" stroke-width="1"/>
+  <text x="500" y="405" text-anchor="middle" fill="#f87171" font-size="14" font-weight="bold" font-family="Arial">UART1 (MAVLink)</text>
+  
+  <!-- Services -->
+  <rect x="380" y="430" width="240" height="50" rx="8" fill="#3d4a5a" stroke="#60a5fa" stroke-width="1"/>
+  <text x="500" y="455" text-anchor="middle" fill="#60a5fa" font-size="12" font-weight="bold" font-family="Arial">Services</text>
+  <text x="500" y="472" text-anchor="middle" fill="#aaa" font-size="10" font-family="Arial">HTTP :554 • UDP :14550 (MAVLink)</text>
+  
+  <!-- Pixhawk Box -->
+  <rect x="50" y="300" width="180" height="140" rx="12" fill="#5a2d2d" stroke="#f87171" stroke-width="2" filter="url(#shadow)"/>
+  <text x="140" y="335" text-anchor="middle" fill="#f87171" font-size="16" font-weight="bold" font-family="Arial">PIXHAWK</text>
+  <text x="140" y="355" text-anchor="middle" fill="#aaa" font-size="11" font-family="Arial">Flight Controller</text>
+  
+  <rect x="70" y="370" width="140" height="50" rx="6" fill="#4a2525" stroke="#f87171" stroke-width="1"/>
+  <text x="140" y="395" text-anchor="middle" fill="#fca5a5" font-size="12" font-weight="bold" font-family="Arial">TELEM1</text>
+  <text x="140" y="412" text-anchor="middle" fill="#aaa" font-size="9" font-family="Arial">TX → GPIO12 • RX ← GPIO13</text>
+  
+  <!-- GCS Box -->
+  <rect x="770" y="200" width="180" height="130" rx="12" fill="#2d4a5a" stroke="#60a5fa" stroke-width="2" filter="url(#shadow)"/>
+  <text x="860" y="235" text-anchor="middle" fill="#60a5fa" font-size="14" font-weight="bold" font-family="Arial">Ground Control</text>
+  <text x="860" y="255" text-anchor="middle" fill="#60a5fa" font-size="14" font-weight="bold" font-family="Arial">Station (GCS)</text>
+  <text x="860" y="285" text-anchor="middle" fill="#aaa" font-size="11" font-family="Arial">QGroundControl</text>
+  <text x="860" y="305" text-anchor="middle" fill="#aaa" font-size="11" font-family="Arial">Mission Planner</text>
+  
+  <!-- Mobile Device Box -->
+  <rect x="770" y="380" width="180" height="100" rx="12" fill="#3d4a3d" stroke="#4ade80" stroke-width="2" filter="url(#shadow)"/>
+  <text x="860" y="415" text-anchor="middle" fill="#4ade80" font-size="14" font-weight="bold" font-family="Arial">📱 Mobile Device</text>
+  <text x="860" y="440" text-anchor="middle" fill="#aaa" font-size="11" font-family="Arial">Web Browser</text>
+  <text x="860" y="460" text-anchor="middle" fill="#aaa" font-size="11" font-family="Arial">VLC Player</text>
+  
+  <!-- Connection Lines -->
+  <!-- Pixhawk to ESP32-CAM (UART) -->
+  <line x1="230" y1="370" x2="350" y2="400" stroke="#f87171" stroke-width="3"/>
+  <text x="290" y="365" text-anchor="middle" fill="#f87171" font-size="11" font-family="Arial">UART</text>
+  <text x="290" y="380" text-anchor="middle" fill="#aaa" font-size="9" font-family="Arial">115200 baud</text>
+  
+  <!-- ESP32-CAM to GCS (MAVLink UDP) -->
+  <line x1="650" y1="300" x2="770" y2="265" stroke="#fbbf24" stroke-width="2" stroke-dasharray="8,4"/>
+  <text x="710" y="260" text-anchor="middle" fill="#fbbf24" font-size="11" font-family="Arial">UDP :14550</text>
+  <text x="710" y="275" text-anchor="middle" fill="#aaa" font-size="9" font-family="Arial">MAVLink</text>
+  
+  <!-- ESP32-CAM to Mobile (HTTP Stream) -->
+  <line x1="650" y1="360" x2="770" y2="420" stroke="#4ade80" stroke-width="2" stroke-dasharray="8,4"/>
+  <text x="710" y="400" text-anchor="middle" fill="#4ade80" font-size="11" font-family="Arial">HTTP :554</text>
+  <text x="710" y="415" text-anchor="middle" fill="#aaa" font-size="9" font-family="Arial">MJPEG Stream</text>
+  
+  <!-- WiFi Symbol -->
+  <text x="680" y="340" fill="#a78bfa" font-size="24" font-family="Arial">📡</text>
+  
+  <!-- Legend -->
+  <rect x="50" y="550" width="900" height="120" rx="10" fill="#1a1a2e" stroke="#444" stroke-width="1"/>
+  
+  <!-- Legend Title -->
+  <text x="500" y="575" text-anchor="middle" fill="#888" font-size="14" font-weight="bold" font-family="Arial">Bağlantı Türleri / Connection Types</text>
+  
+  <!-- Legend Items -->
+  <line x1="80" y1="600" x2="130" y2="600" stroke="#f87171" stroke-width="3"/>
+  <text x="140" y="605" fill="#aaa" font-size="11" font-family="Arial">UART Serial (MAVLink Telemetri)</text>
+  
+  <line x1="80" y1="625" x2="130" y2="625" stroke="#4ade80" stroke-width="2" stroke-dasharray="8,4"/>
+  <text x="140" y="630" fill="#aaa" font-size="11" font-family="Arial">WiFi HTTP (MJPEG Video)</text>
+  
+  <line x1="80" y1="650" x2="130" y2="650" stroke="#fbbf24" stroke-width="2" stroke-dasharray="8,4"/>
+  <text x="140" y="655" fill="#aaa" font-size="11" font-family="Arial">WiFi UDP (MAVLink to GCS)</text>
+  
+  <!-- System Info -->
+  <text x="400" y="600" fill="#888" font-size="12" font-weight="bold" font-family="Arial">Sistem Bilgileri / System Info</text>
+  <text x="400" y="620" fill="#aaa" font-size="10" font-family="Arial">• WiFi SSID: PixhawkDrone (192.168.4.1)</text>
+  <text x="400" y="635" fill="#aaa" font-size="10" font-family="Arial">• Stream: http://192.168.4.1:554</text>
+  <text x="400" y="650" fill="#aaa" font-size="10" font-family="Arial">• MAVLink: UDP 192.168.4.1:14550</text>
+  
+  <!-- Pin Info -->
+  <text x="700" y="600" fill="#888" font-size="12" font-weight="bold" font-family="Arial">Pin Bağlantıları / Pinout</text>
+  <text x="700" y="620" fill="#aaa" font-size="10" font-family="Arial">Pixhawk TX → ESP32 GPIO12</text>
+  <text x="700" y="635" fill="#aaa" font-size="10" font-family="Arial">Pixhawk RX ← ESP32 GPIO13</text>
+  <text x="700" y="650" fill="#aaa" font-size="10" font-family="Arial">GND ↔ GND</text>
+</svg>

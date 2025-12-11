@@ -1,9 +1,0 @@
-version: "2.3.0"
-description: "USB Host UVC (USB Video Class) Driver"
-url: https://github.com/espressif/esp-usb/tree/master/host/class/uvc/usb_host_uvc
-dependencies:
-  idf:
-    version: ">=5.0"
-targets:
-  - esp32s2
-  - esp32s3
