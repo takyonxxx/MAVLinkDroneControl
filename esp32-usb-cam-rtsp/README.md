@@ -40,9 +40,9 @@ ESP32-CAM üzerindeki OV2640 kameradan görüntü alıp WiFi Access Point üzeri
 ```
 ESP32-CAM                   Pixhawk (TELEM1/TELEM2)
 ---------                   -----------------------
-GPIO13 (TX)  ------------->  RX
-GPIO12 (RX)  <-------------  TX
-GND          <------------>  GND
+GPIO1 (U0TXD) ------------>  RX
+GPIO3 (U0RXD) <------------  TX
+GND           <----------->  GND
 
 ESP32-CAM                   USB-TTL (Programlama için)
 ---------                   ------------------------
@@ -55,7 +55,7 @@ IO0          -----> GND      (Sadece programlama modunda)
 
 > ⚠️ **Programlama Sonrası IO0-GND bağlantısını kaldırın!**
 > ⚠️ Pixhawk ile 3.3V sinyal seviyesi uyumludur, level shifter gerekmez.
-> ⚠️ **GPIO12/13 SD kart ile paylaşımlıdır.** MAVLink kullanırken SD kart takılı olmamalıdır!
+> ⚠️ **GPIO1/GPIO3 USB-TTL programlama ile paylaşımlıdır.** Programlama yaparken Pixhawk bağlantısını kesin!
 
 ### Pin Mapping
 
@@ -78,8 +78,10 @@ IO0          -----> GND      (Sadece programlama modunda)
 | GPIO32 | PWDN | Kamera power |
 | GPIO4 | FLASH | Flash LED |
 | GPIO33 | LED | Dahili LED |
-| GPIO12 | TX | MAVLink TX → Pixhawk RX |
-| GPIO13 | RX | MAVLink RX ← Pixhawk TX |
+| GPIO1 | U0TXD | MAVLink TX → Pixhawk RX |
+| GPIO3 | U0RXD | MAVLink RX ← Pixhawk TX |
+| GPIO12 | HS2_DATA2 | SD Card (HSPI) |
+| GPIO13 | HS2_DATA3 | SD Card (HSPI) |
 
 ## 📡 Ağ Yapılandırması
 
@@ -227,8 +229,8 @@ build_flags =
     ; FRAMESIZE_HD (1280x720)
     
     ; MAVLink ayarları
-    -DMAVLINK_UART_TX_PIN=13
-    -DMAVLINK_UART_RX_PIN=12
+    -DMAVLINK_UART_TX_PIN=1
+    -DMAVLINK_UART_RX_PIN=3
     -DMAVLINK_UART_BAUD=115200
     -DMAVLINK_UDP_PORT=14550
 ```
@@ -276,14 +278,16 @@ SER_TEL1_BAUD = 115200
 - Tek istemci ile test edin
 
 ### Pixhawk bağlanmıyor
-- TX/RX kablolarının çapraz bağlandığından emin olun
+- TX/RX kablolarının çapraz bağlandığından emin olun (ESP32 TX → Pixhawk RX)
 - Baud rate'in eşleştiğini kontrol edin (115200)
 - GND bağlantısını kontrol edin
+- Programlama sırasında Pixhawk bağlantısını kesin (GPIO1/3 paylaşımlı)
 
 ### Programlama hatası
 - IO0 pinin GND'ye bağlı olduğundan emin olun
 - RST butonuna basın veya güç döngüsü yapın
 - Upload başlamadan önce "Connecting..." mesajını bekleyin
+- Pixhawk bağlantısını kesin (GPIO1/3 USB-TTL ile paylaşımlı)
 
 ## 📁 Proje Yapısı
 
