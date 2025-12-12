@@ -25,7 +25,6 @@
 		A6C03FAB3640D8EB35C69E8B /* DroneControlApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2311F05382E3E35ABA13412D /* DroneControlApp.swift */; };
 		A92954C96BE9E98870DD4C36 /* ControlPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81498F5922D9EF486B170AC0 /* ControlPanelView.swift */; };
 		BB1F01B3F288919D0206F4B2 /* UDPConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45D3CD6A9DE34134CD2CF226 /* UDPConnection.swift */; };
-		EB507FFD6E410372F5FA1A3D /* VideoStreamView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ADD253A3CC449AC4056CE2A /* VideoStreamView.swift */; };
 		F870771B72104EB36B5FD4B8 /* ConnectionStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B4BAB5B509BAF9C5F59A66 /* ConnectionStatusView.swift */; };
 /* End PBXBuildFile section */
 
@@ -40,7 +39,6 @@
 		724A8B5E83C38B664385DAD3 /* FlightModeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlightModeView.swift; sourceTree = "<group>"; };
 		81498F5922D9EF486B170AC0 /* ControlPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlPanelView.swift; sourceTree = "<group>"; };
 		8EB8D06DA1A4E034E72D7921 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		9ADD253A3CC449AC4056CE2A /* VideoStreamView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoStreamView.swift; sourceTree = "<group>"; };
 		9C8154FD2EE74BF1004EEB8A /* EnhancedMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnhancedMapView.swift; sourceTree = "<group>"; };
 		9C8154FE2EE74BF1004EEB8A /* MapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapView.swift; sourceTree = "<group>"; };
 		9C8155072EE74D70004EEB8A /* MapModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapModels.swift; sourceTree = "<group>"; };
@@ -91,7 +89,6 @@
 				58CC8ABCC49EBB75E19499DB /* SettingsView.swift */,
 				9CC5ADCA2EE43D050021F292 /* AttitudeIndicator.swift */,
 				9CC5ADCC2EE43D270021F292 /* MainDashboardView.swift */,
-				9ADD253A3CC449AC4056CE2A /* VideoStreamView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -224,7 +221,6 @@
 				F870771B72104EB36B5FD4B8 /* ConnectionStatusView.swift in Sources */,
 				A92954C96BE9E98870DD4C36 /* ControlPanelView.swift in Sources */,
 				38BC820555B3377A78682069 /* SettingsView.swift in Sources */,
-				EB507FFD6E410372F5FA1A3D /* VideoStreamView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
