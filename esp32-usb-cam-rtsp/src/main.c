@@ -1,6 +1,6 @@
 /**
  * @file main.c
- * @brief ESP32-CAM RTSP Streamer + MAVLink Telemetry
+ * @brief ESP32-CAM MJPEG Streamer + MAVLink Telemetry
  *
  * RTOS Task Yapısı:
  * ─────────────────────────────────────────────────
@@ -8,8 +8,8 @@
  *   - camera_task (Priority 5) - Frame capture
  *
  * CPU1 (APP_CPU):
- *   - network_task (Priority 5) - WiFi/RTSP/MAVLink init
- *   - rtsp_sender_task (Priority 4) - Frame → Client
+ *   - network_task (Priority 5) - WiFi/Stream/MAVLink init
+ *   - stream_sender_task (Priority 4) - Frame → Client
  *   - mavlink_uart_task (Priority 4) - UART ↔ UDP
  * ─────────────────────────────────────────────────
  */
@@ -34,10 +34,10 @@
 static const char *TAG = "MAIN";
 
 // ═══════════════════════════════════════════════════════
-// Frame Queue - Kamera → RTSP iletişimi
+// Frame Queue - Kamera → Stream iletişimi
 // ═══════════════════════════════════════════════════════
 #define FRAME_QUEUE_SIZE 2
-#define MAX_FRAME_SIZE (50 * 1024) // 50KB max frame
+#define MAX_FRAME_SIZE (20 * 1024)  // 20KB - QVGA için yeterli
 
 typedef struct
 {
@@ -56,7 +56,7 @@ static SemaphoreHandle_t s_frame_mutex = NULL;
 // Task handles
 static TaskHandle_t s_camera_task = NULL;
 static TaskHandle_t s_network_task = NULL;
-static TaskHandle_t s_rtsp_sender_task = NULL;
+static TaskHandle_t s_stream_sender_task = NULL;
 
 // Stats
 static uint32_t s_frame_count = 0;
@@ -71,6 +71,10 @@ static void wifi_callback(wifi_ap_state_t state, void *arg)
     {
         ESP_LOGI(TAG, "📱 Client connected to WiFi");
     }
+    else if (state == WIFI_AP_STATE_CLIENT_DISCONNECTED)
+    {
+        ESP_LOGI(TAG, "📱 Client disconnected from WiFi");
+    }
 }
 
 static void mavlink_heartbeat_callback(const mavlink_heartbeat_info_t *info, void *arg)
@@ -79,15 +83,15 @@ static void mavlink_heartbeat_callback(const mavlink_heartbeat_info_t *info, voi
     (void)arg;
 }
 
-static void rtsp_client_callback(uint32_t client_id, bool connected, void *arg)
+static void stream_client_callback(uint32_t client_id, bool connected, void *arg)
 {
     if (connected)
     {
-        ESP_LOGI(TAG, "🎥 RTSP client #%lu started streaming", (unsigned long)client_id);
+        ESP_LOGI(TAG, "🎥 Stream client #%lu connected", (unsigned long)client_id);
     }
     else
     {
-        ESP_LOGI(TAG, "🎥 RTSP client #%lu stopped streaming", (unsigned long)client_id);
+        ESP_LOGI(TAG, "🎥 Stream client #%lu disconnected", (unsigned long)client_id);
     }
 }
 
@@ -99,12 +103,12 @@ static void camera_task(void *arg)
 {
     ESP_LOGI(TAG, "📷 Camera task started on CPU%d", xPortGetCoreID());
 
-    // Kamera başlat
+    // Kamera başlat - QVGA (320x240) DRAM modunda
     ov2640_config_t cam_config = {
-        .framesize = FRAMESIZE_VGA, // 640x480
-        .quality = 12,              // JPEG quality (10-63, lower=better)
-        .fps = 15,
-        .frame_callback = NULL, // Manuel capture kullanacağız
+        .framesize = FRAMESIZE_QVGA,  // 320x240 - DRAM için uygun
+        .quality = 15,                 // Düşük kalite = küçük boyut
+        .fps = 10,
+        .frame_callback = NULL,
         .callback_arg = NULL,
     };
 
@@ -116,7 +120,7 @@ static void camera_task(void *arg)
         return;
     }
 
-    ESP_LOGI(TAG, "✅ Camera initialized: VGA 640x480 @ 15fps");
+    ESP_LOGI(TAG, "✅ Camera initialized: QVGA 320x240 @ 10fps");
 
     uint32_t seq = 0;
     uint32_t fps_count = 0;
@@ -150,7 +154,7 @@ static void camera_task(void *arg)
 
                 xSemaphoreGive(s_frame_mutex);
 
-                // Queue'ya gönder (overwrite mode - eski frame'i at)
+                // Queue'ya gönder (overwrite mode)
                 if (xQueueOverwrite(s_frame_queue, &msg) != pdTRUE)
                 {
                     s_dropped_frames++;
@@ -170,9 +174,9 @@ static void camera_task(void *arg)
                 fps_count = 0;
                 fps_start = now;
 
-                // Her 5 saniyede bir log
-                if ((seq % 75) == 0)
-                { // 15fps * 5s = 75
+                // Her 10 saniyede bir log
+                if ((seq % 100) == 0)
+                {
                     ESP_LOGI(TAG, "📊 Camera: %.1f fps, %lu frames, %lu dropped",
                              current_fps, (unsigned long)s_frame_count, (unsigned long)s_dropped_frames);
                 }
@@ -184,18 +188,18 @@ static void camera_task(void *arg)
             vTaskDelay(pdMS_TO_TICKS(100));
         }
 
-        // FPS kontrolü (~15fps = 66ms)
-        vTaskDelay(pdMS_TO_TICKS(50));
+        // FPS kontrolü (~10fps = 100ms)
+        vTaskDelay(pdMS_TO_TICKS(80));
     }
 }
 
 // ═══════════════════════════════════════════════════════
-// RTSP SENDER TASK - CPU1 (APP_CPU)
-// Queue'dan frame al, RTSP client'lara gönder
+// STREAM SENDER TASK - CPU1 (APP_CPU)
+// Queue'dan frame al, client'lara gönder
 // ═══════════════════════════════════════════════════════
-static void rtsp_sender_task(void *arg)
+static void stream_sender_task(void *arg)
 {
-    ESP_LOGI(TAG, "📡 RTSP sender task started on CPU%d", xPortGetCoreID());
+    ESP_LOGI(TAG, "📡 Stream sender task started on CPU%d", xPortGetCoreID());
 
     frame_msg_t msg;
     uint32_t sent_count = 0;
@@ -207,8 +211,8 @@ static void rtsp_sender_task(void *arg)
         {
             if (msg.size > 0)
             {
-                // RTSP'ye gönder
-                rtsp_frame_t rtsp_frame = {
+                // Stream server'a gönder
+                rtsp_frame_t frame = {
                     .data = msg.data,
                     .size = msg.size,
                     .capacity = msg.size,
@@ -219,11 +223,11 @@ static void rtsp_sender_task(void *arg)
                     .sequence = msg.sequence,
                 };
 
-                rtsp_server_send_frame(&rtsp_frame);
+                rtsp_server_send_frame(&frame);
                 sent_count++;
 
-                // Her 30 frame'de bir log
-                if (sent_count % 30 == 0)
+                // Her 50 frame'de bir log
+                if (sent_count % 50 == 0)
                 {
                     ESP_LOGD(TAG, "📤 Sent frame #%lu (%u bytes)",
                              (unsigned long)sent_count, (unsigned)msg.size);
@@ -235,7 +239,7 @@ static void rtsp_sender_task(void *arg)
 
 // ═══════════════════════════════════════════════════════
 // NETWORK TASK - CPU1 (APP_CPU)
-// WiFi, RTSP, MAVLink başlatma
+// WiFi, Stream Server, MAVLink başlatma
 // ═══════════════════════════════════════════════════════
 static void network_task(void *arg)
 {
@@ -247,15 +251,15 @@ static void network_task(void *arg)
     wifi_ap_start();
     ESP_LOGI(TAG, "📶 WiFi AP: %s (192.168.4.1)", WIFI_AP_SSID);
 
-    // RTSP Server başlat
-    rtsp_server_config_t rtsp_config = {
-        .port = 8080,                           // MJPEG HTTP port
+    // Stream Server başlat
+    rtsp_server_config_t stream_config = {
+        .port = 8080,
         .stream_name = "stream",
-        .max_clients = RTSP_MAX_CLIENTS,
-        .client_callback = rtsp_client_callback,
+        .max_clients = 2,
+        .client_callback = stream_client_callback,
         .callback_arg = NULL,
     };
-    rtsp_server_init(&rtsp_config);
+    rtsp_server_init(&stream_config);
     rtsp_server_start();
 
     // MAVLink başlat
@@ -270,21 +274,22 @@ static void network_task(void *arg)
     };
     mavlink_telemetry_init(&mav_config);
     mavlink_telemetry_start();
+    ESP_LOGI(TAG, "🛩️ MAVLink: UDP port %d", MAVLINK_UDP_PORT);
 
-    // RTSP Sender task başlat (aynı CPU'da)
+    // Stream Sender task başlat
     xTaskCreatePinnedToCore(
-        rtsp_sender_task,
-        "rtsp_send",
+        stream_sender_task,
+        "stream_send",
         4096,
         NULL,
-        4, // Priority (network'ten düşük)
-        &s_rtsp_sender_task,
-        1 // CPU1 (APP_CPU)
+        4,
+        &s_stream_sender_task,
+        1
     );
 
     ESP_LOGI(TAG, "════════════════════════════════════════");
     ESP_LOGI(TAG, "✅ System Ready!");
-    ESP_LOGI(TAG, "   WiFi: %s", WIFI_AP_SSID);
+    ESP_LOGI(TAG, "   WiFi: %s (pass: %s)", WIFI_AP_SSID, WIFI_AP_PASS);
     ESP_LOGI(TAG, "   Video: http://192.168.4.1:8080/stream");
     ESP_LOGI(TAG, "   MAVLink: UDP 14550");
     ESP_LOGI(TAG, "════════════════════════════════════════");
@@ -295,7 +300,7 @@ static void network_task(void *arg)
         vTaskDelay(pdMS_TO_TICKS(10000));
 
         // Sistem durumu
-        ESP_LOGI(TAG, "💾 Heap: %lu bytes free, Clients: %d", 
+        ESP_LOGI(TAG, "💾 Heap: %lu free, Clients: %d", 
                  (unsigned long)esp_get_free_heap_size(),
                  rtsp_server_get_client_count());
     }
@@ -315,20 +320,14 @@ void app_main(void)
     }
 
     ESP_LOGI(TAG, "════════════════════════════════════════");
-    ESP_LOGI(TAG, "   ESP32-CAM RTSP + MAVLink System");
+    ESP_LOGI(TAG, "   ESP32-CAM MJPEG Stream System");
     ESP_LOGI(TAG, "════════════════════════════════════════");
     ESP_LOGI(TAG, "Free heap: %lu bytes", (unsigned long)esp_get_free_heap_size());
 
     // Frame queue ve buffer oluştur
-    s_frame_queue = xQueueCreate(1, sizeof(frame_msg_t)); // Single item queue (overwrite mode)
+    s_frame_queue = xQueueCreate(1, sizeof(frame_msg_t));
     s_frame_mutex = xSemaphoreCreateMutex();
-    s_frame_buffer = heap_caps_malloc(MAX_FRAME_SIZE, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-
-    if (!s_frame_buffer)
-    {
-        // PSRAM yoksa internal RAM dene
-        s_frame_buffer = heap_caps_malloc(MAX_FRAME_SIZE, MALLOC_CAP_8BIT);
-    }
+    s_frame_buffer = heap_caps_malloc(MAX_FRAME_SIZE, MALLOC_CAP_8BIT);
 
     if (!s_frame_queue || !s_frame_mutex || !s_frame_buffer)
     {
@@ -339,34 +338,30 @@ void app_main(void)
     ESP_LOGI(TAG, "✅ Frame buffer: %d KB", MAX_FRAME_SIZE / 1024);
 
     // ─────────────────────────────────────────────
-    // Task'ları başlat - CPU dağılımı:
-    // CPU0: Kamera (yoğun I/O)
-    // CPU1: Network (WiFi driver burada)
+    // Task'ları başlat
     // ─────────────────────────────────────────────
 
-    // Camera task - CPU0 (PRO_CPU)
+    // Camera task - CPU0
     xTaskCreatePinnedToCore(
         camera_task,
         "camera",
         4096,
         NULL,
-        5, // High priority
+        5,
         &s_camera_task,
-        0 // CPU0 (PRO_CPU)
+        0
     );
 
-    // Network task - CPU1 (APP_CPU)
+    // Network task - CPU1
     xTaskCreatePinnedToCore(
         network_task,
         "network",
         8192,
         NULL,
-        5, // High priority
+        5,
         &s_network_task,
-        1 // CPU1 (APP_CPU)
+        1
     );
 
     ESP_LOGI(TAG, "🚀 Tasks started, main exiting");
-
-    // app_main bitti, RTOS scheduler devam ediyor
 }

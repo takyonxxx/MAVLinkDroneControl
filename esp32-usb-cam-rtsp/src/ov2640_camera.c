@@ -1,6 +1,8 @@
 /**
  * @file ov2640_camera.c
  * @brief OV2640 Kamera modülü (ESP32-CAM AI-Thinker)
+ * 
+ * PSRAM olmadan DRAM kullanır
  */
 
 #include "ov2640_camera.h"
@@ -125,9 +127,9 @@ esp_err_t ov2640_init(const ov2640_config_t *config)
     }
     else
     {
-        s_cam.config.framesize = FRAMESIZE_VGA;
-        s_cam.config.quality = 12;
-        s_cam.config.fps = 15;
+        s_cam.config.framesize = FRAMESIZE_QVGA;  // 320x240 default
+        s_cam.config.quality = 15;
+        s_cam.config.fps = 10;
     }
 
     // Flash LED GPIO
@@ -141,7 +143,7 @@ esp_err_t ov2640_init(const ov2640_config_t *config)
     gpio_config(&io_conf);
     gpio_set_level(CAM_PIN_FLASH, 0);
 
-    // Kamera konfigürasyonu
+    // Kamera konfigürasyonu - DRAM kullan (PSRAM yok)
     camera_config_t camera_config = {
         .pin_pwdn = CAM_PIN_PWDN,
         .pin_reset = CAM_PIN_RESET,
@@ -167,10 +169,12 @@ esp_err_t ov2640_init(const ov2640_config_t *config)
         .pixel_format = PIXFORMAT_JPEG,
         .frame_size = s_cam.config.framesize,
         .jpeg_quality = s_cam.config.quality,
-        .fb_count = 2,
-        .fb_location = CAMERA_FB_IN_PSRAM,
+        .fb_count = 1,                      // DRAM için 1 buffer
+        .fb_location = CAMERA_FB_IN_DRAM,   // DRAM kullan
         .grab_mode = CAMERA_GRAB_LATEST,
     };
+
+    ESP_LOGI(TAG, "Using DRAM for frame buffer (no PSRAM)");
 
     // Kamerayı başlat
     esp_err_t ret = esp_camera_init(&camera_config);
@@ -201,7 +205,7 @@ esp_err_t ov2640_init(const ov2640_config_t *config)
     }
 
     s_cam.initialized = true;
-    ESP_LOGI(TAG, "OV2640 camera initialized");
+    ESP_LOGI(TAG, "OV2640 camera initialized (DRAM mode)");
 
     return ESP_OK;
 }
