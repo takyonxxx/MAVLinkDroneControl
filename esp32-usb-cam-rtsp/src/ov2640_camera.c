@@ -1,6 +1,5 @@
 /**
- * @file ov2640_camera.c
- * @brief OV2640 Camera Module (ESP32-CAM AI-Thinker)
+ * OV2640 Camera Module - ESP32-CAM AI-Thinker
  */
 
 #include "ov2640_camera.h"
@@ -35,9 +34,7 @@ static const char *TAG = "OV2640";
 
 static struct {
     bool initialized;
-    bool streaming;
     ov2640_config_t config;
-    TaskHandle_t stream_task;
     float current_fps;
 } s_cam = {0};
 
@@ -45,7 +42,7 @@ esp_err_t ov2640_init(const ov2640_config_t *config)
 {
     if (s_cam.initialized) return ESP_OK;
 
-    ESP_LOGI(TAG, "Initializing OV2640 camera...");
+    ESP_LOGI(TAG, "Initializing camera...");
 
     if (config) {
         memcpy(&s_cam.config, config, sizeof(ov2640_config_t));
@@ -55,7 +52,7 @@ esp_err_t ov2640_init(const ov2640_config_t *config)
         s_cam.config.fps = 15;
     }
 
-    // Flash LED GPIO
+    // Flash LED
     gpio_config_t io_conf = {
         .pin_bit_mask = (1ULL << CAM_PIN_FLASH),
         .mode = GPIO_MODE_OUTPUT,
@@ -63,17 +60,17 @@ esp_err_t ov2640_init(const ov2640_config_t *config)
     gpio_config(&io_conf);
     gpio_set_level(CAM_PIN_FLASH, 0);
 
-    // Check PSRAM
+    // PSRAM kontrolü
     size_t psram = heap_caps_get_total_size(MALLOC_CAP_SPIRAM);
     bool has_psram = (psram > 0);
     
     if (has_psram) {
-        ESP_LOGI(TAG, "✅ PSRAM detected: %u KB", (unsigned)(psram / 1024));
+        ESP_LOGI(TAG, "PSRAM available: %u KB", (unsigned)(psram / 1024));
     } else {
-        ESP_LOGW(TAG, "⚠️ No PSRAM - using DRAM mode");
+        ESP_LOGW(TAG, "No PSRAM - limited mode");
     }
 
-    // Camera config - match Arduino example
+    // Kamera config
     camera_config_t cam_config = {
         .pin_pwdn = CAM_PIN_PWDN,
         .pin_reset = CAM_PIN_RESET,
@@ -97,15 +94,12 @@ esp_err_t ov2640_init(const ov2640_config_t *config)
         .ledc_channel = LEDC_CHANNEL_0,
 
         .pixel_format = PIXFORMAT_JPEG,
-        // PSRAM varsa SVGA (800x600), yoksa QVGA (320x240)
-        .frame_size = has_psram ? FRAMESIZE_SVGA : FRAMESIZE_QVGA,
-        .jpeg_quality = has_psram ? 10 : 12,
+        .frame_size = has_psram ? s_cam.config.framesize : FRAMESIZE_QVGA,
+        .jpeg_quality = has_psram ? s_cam.config.quality : 12,
         .fb_count = has_psram ? 2 : 1,
         .fb_location = has_psram ? CAMERA_FB_IN_PSRAM : CAMERA_FB_IN_DRAM,
         .grab_mode = CAMERA_GRAB_LATEST,
     };
-
-    ESP_LOGI(TAG, "Using %s for frame buffer", has_psram ? "PSRAM" : "DRAM");
 
     esp_err_t ret = esp_camera_init(&cam_config);
     if (ret != ESP_OK) {
@@ -125,12 +119,9 @@ esp_err_t ov2640_init(const ov2640_config_t *config)
     }
 
     s_cam.initialized = true;
-    ESP_LOGI(TAG, "========================================");
-    ESP_LOGI(TAG, "Camera initialized successfully");
-    ESP_LOGI(TAG, "  Resolution: %s", has_psram ? "VGA 640x480" : "QVGA 320x240");
-    ESP_LOGI(TAG, "  Buffer: %s", has_psram ? "PSRAM" : "DRAM");
-    ESP_LOGI(TAG, "  Free heap: %lu", (unsigned long)esp_get_free_heap_size());
-    ESP_LOGI(TAG, "========================================");
+    ESP_LOGI(TAG, "Camera ready - %s, %s buffer",
+             has_psram ? "VGA" : "QVGA",
+             has_psram ? "PSRAM" : "DRAM");
 
     return ESP_OK;
 }
@@ -138,7 +129,6 @@ esp_err_t ov2640_init(const ov2640_config_t *config)
 esp_err_t ov2640_deinit(void)
 {
     if (!s_cam.initialized) return ESP_OK;
-    ov2640_stop();
     esp_camera_deinit();
     s_cam.initialized = false;
     return ESP_OK;
