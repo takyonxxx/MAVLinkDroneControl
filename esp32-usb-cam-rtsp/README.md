@@ -331,3 +331,6 @@ MIT License - Özgürce kullanın ve geliştirin!
 - [ESP-IDF Programming Guide](https://docs.espressif.com/projects/esp-idf/en/latest/)
 - [esp32-camera Library](https://github.com/espressif/esp32-camera)
 - [MAVLink Protocol](https://mavlink.io/en/)
+
+$pio = "C:\Users\turka\.platformio\penv\Scripts\platformio.exe"
+& $pio run -t upload; & $pio device monitor

@@ -1,6 +1,11 @@
 /**
  * @file rtsp_server.h
- * @brief RTSP Server modülü
+ * @brief Real RTSP Server with RTP streaming for ESP32-CAM
+ * 
+ * Supports:
+ * - RTSP commands: OPTIONS, DESCRIBE, SETUP, PLAY, TEARDOWN
+ * - RTP/JPEG streaming over UDP (RFC 2435)
+ * - Multiple clients
  */
 
 #ifndef RTSP_SERVER_H
@@ -10,9 +15,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-// Varsayılan ayarlar
+// Default settings
 #ifndef RTSP_PORT
-#define RTSP_PORT 554
+#define RTSP_PORT 8554
 #endif
 
 #ifndef RTSP_STREAM_NAME
@@ -23,7 +28,7 @@
 #define RTSP_MAX_CLIENTS 2
 #endif
 
-// Frame yapısı
+// Frame structure
 typedef struct {
     uint8_t *data;
     size_t size;
@@ -35,10 +40,10 @@ typedef struct {
     uint32_t sequence;
 } rtsp_frame_t;
 
-// Callback tipi
+// Client callback
 typedef void (*rtsp_client_cb_t)(uint32_t client_id, bool connected, void *arg);
 
-// Konfigürasyon
+// Configuration
 typedef struct {
     uint16_t port;
     const char *stream_name;
@@ -48,32 +53,32 @@ typedef struct {
 } rtsp_server_config_t;
 
 /**
- * @brief RTSP sunucuyu başlat
+ * @brief Initialize RTSP server
  */
 esp_err_t rtsp_server_init(const rtsp_server_config_t *config);
 
 /**
- * @brief RTSP sunucuyu durdur
+ * @brief Deinitialize RTSP server
  */
 esp_err_t rtsp_server_deinit(void);
 
 /**
- * @brief Sunucuyu aktif et
+ * @brief Start RTSP server
  */
 esp_err_t rtsp_server_start(void);
 
 /**
- * @brief Sunucuyu durdur
+ * @brief Stop RTSP server
  */
 esp_err_t rtsp_server_stop(void);
 
 /**
- * @brief Frame gönder
+ * @brief Send frame to all connected clients
  */
 esp_err_t rtsp_server_send_frame(const rtsp_frame_t *frame);
 
 /**
- * @brief Bağlı istemci sayısı
+ * @brief Get connected client count
  */
 uint8_t rtsp_server_get_client_count(void);
 
