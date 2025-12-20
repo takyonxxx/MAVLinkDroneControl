@@ -3,13 +3,13 @@
  * Arduino Framework + Micro-RTSP
  * 
  * Features:
- * - RTSP video streaming (VGA 640x480 @ ~10fps)
+ * - RTSP video streaming
  * - MAVLink UART<->UDP bridge for Pixhawk telemetry
  * - WiFi Access Point mode
  * - PSRAM support for high resolution
  * 
  * Connections:
- * - RTSP: rtsp://192.168.4.1:8554/mjpeg/1
+ * - RTSP: rtsp://192.168.4.1:554/stream
  * - MAVLink UDP: 192.168.4.1:14550
  * - WiFi: PixhawkDrone / 12345678
  */
@@ -50,7 +50,7 @@ const char* WIFI_SSID = "PixhawkDrone";
 const char* WIFI_PASS = "12345678";
 
 // RTSP Server
-#define RTSP_PORT 8554
+#define RTSP_PORT 554
 
 // MAVLink Bridge (UART <-> UDP)
 #define MAVLINK_UART_NUM   1
@@ -59,8 +59,20 @@ const char* WIFI_PASS = "12345678";
 #define MAVLINK_UART_BAUD  115200
 #define MAVLINK_UDP_PORT   14550
 
-// Frame rate control
-#define FRAME_INTERVAL_MS  100  // ~10 fps
+// Frame rate control - değiştirilebilir ayarlar
+// 33ms = ~30fps, 50ms = ~20fps, 67ms = ~15fps, 100ms = ~10fps
+#define FRAME_INTERVAL_MS  100   // ~10 fps
+
+// Çözünürlük seçenekleri:
+// FRAMESIZE_VGA    = 640x480   (hızlı, düşük kalite)
+// FRAMESIZE_SVGA   = 800x600   (dengeli)
+// FRAMESIZE_XGA    = 1024x768  (iyi kalite)
+// FRAMESIZE_SXGA   = 1280x1024 (yüksek kalite, yavaş)
+// FRAMESIZE_UXGA   = 1600x1200 (en yüksek, çok yavaş)
+#define CAMERA_RESOLUTION  FRAMESIZE_XGA
+
+// JPEG kalitesi: 4-63 arası, düşük = daha iyi kalite ama büyük dosya
+#define JPEG_QUALITY  16
 
 // ============================================
 // GLOBAL OBJECTS
@@ -141,8 +153,8 @@ void setupCamera() {
     Serial.println("[Camera] Initializing...");
     
     // Use AI-Thinker ESP32-CAM configuration from Micro-RTSP
-    esp32cam_aithinker_config.frame_size = FRAMESIZE_VGA;    // 640x480
-    esp32cam_aithinker_config.jpeg_quality = 10;              // 0-63, lower = better quality
+    esp32cam_aithinker_config.frame_size = CAMERA_RESOLUTION;
+    esp32cam_aithinker_config.jpeg_quality = JPEG_QUALITY;
     
     cam.init(esp32cam_aithinker_config);
     
@@ -150,7 +162,18 @@ void setupCamera() {
     pinMode(FLASH_GPIO_NUM, OUTPUT);
     digitalWrite(FLASH_GPIO_NUM, LOW);
     
-    Serial.println("[Camera] Initialized: VGA 640x480");
+    // Resolution names for logging
+    const char* resName;
+    switch(CAMERA_RESOLUTION) {
+        case FRAMESIZE_VGA:  resName = "VGA 640x480"; break;
+        case FRAMESIZE_SVGA: resName = "SVGA 800x600"; break;
+        case FRAMESIZE_XGA:  resName = "XGA 1024x768"; break;
+        case FRAMESIZE_SXGA: resName = "SXGA 1280x1024"; break;
+        case FRAMESIZE_UXGA: resName = "UXGA 1600x1200"; break;
+        default: resName = "Unknown"; break;
+    }
+    
+    Serial.printf("[Camera] Resolution: %s, Quality: %d\n", resName, JPEG_QUALITY);
 }
 
 // ============================================
