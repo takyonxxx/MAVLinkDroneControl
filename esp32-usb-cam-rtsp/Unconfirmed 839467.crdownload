@@ -1,0 +1,17 @@
+; PlatformIO Project Configuration File
+; ESP32-CAM with PSRAM
+
+[env:esp32cam]
+platform = espressif32
+board = esp32cam
+framework = espidf
+monitor_speed = 115200
+upload_speed = 460800
+
+board_build.flash_size = 4MB
+
+build_flags = 
+    -DBOARD_HAS_PSRAM
+    -mfix-esp32-psram-cache-issue
+    -DCONFIG_SPIRAM=1
+    -DCONFIG_SPIRAM_USE_CAPS_ALLOC=1

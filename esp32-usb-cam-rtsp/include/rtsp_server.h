@@ -1,11 +1,11 @@
 /**
  * @file rtsp_server.h
- * @brief Real RTSP Server with RTP streaming for ESP32-CAM
- * 
+ * @brief MJPEG HTTP Streaming Server for ESP32-CAM
+ *
  * Supports:
- * - RTSP commands: OPTIONS, DESCRIBE, SETUP, PLAY, TEARDOWN
- * - RTP/JPEG streaming over UDP (RFC 2435)
- * - Multiple clients
+ * - MJPEG over HTTP streaming
+ * - Multiple clients (up to 4)
+ * - Snapshot endpoint
  */
 
 #ifndef RTSP_SERVER_H
@@ -17,7 +17,7 @@
 
 // Default settings
 #ifndef RTSP_PORT
-#define RTSP_PORT 8554
+#define RTSP_PORT 8080
 #endif
 
 #ifndef RTSP_STREAM_NAME
@@ -25,11 +25,12 @@
 #endif
 
 #ifndef RTSP_MAX_CLIENTS
-#define RTSP_MAX_CLIENTS 2
+#define RTSP_MAX_CLIENTS 4
 #endif
 
 // Frame structure
-typedef struct {
+typedef struct
+{
     uint8_t *data;
     size_t size;
     size_t capacity;
@@ -44,7 +45,8 @@ typedef struct {
 typedef void (*rtsp_client_cb_t)(uint32_t client_id, bool connected, void *arg);
 
 // Configuration
-typedef struct {
+typedef struct
+{
     uint16_t port;
     const char *stream_name;
     uint8_t max_clients;
@@ -53,22 +55,22 @@ typedef struct {
 } rtsp_server_config_t;
 
 /**
- * @brief Initialize RTSP server
+ * @brief Initialize stream server
  */
 esp_err_t rtsp_server_init(const rtsp_server_config_t *config);
 
 /**
- * @brief Deinitialize RTSP server
+ * @brief Deinitialize stream server
  */
 esp_err_t rtsp_server_deinit(void);
 
 /**
- * @brief Start RTSP server
+ * @brief Start stream server
  */
 esp_err_t rtsp_server_start(void);
 
 /**
- * @brief Stop RTSP server
+ * @brief Stop stream server
  */
 esp_err_t rtsp_server_stop(void);
 

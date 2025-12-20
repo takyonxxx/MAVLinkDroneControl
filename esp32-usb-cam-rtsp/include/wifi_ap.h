@@ -7,8 +7,9 @@
 #define WIFI_AP_H
 
 #include "esp_err.h"
+#include <stdint.h>
 
-// Varsayılan AP ayarları
+// AP ayarları
 #ifndef WIFI_AP_SSID
 #define WIFI_AP_SSID "PixhawkDrone"
 #endif
@@ -26,7 +27,8 @@
 #endif
 
 // AP durumu
-typedef enum {
+typedef enum
+{
     WIFI_AP_STATE_STOPPED,
     WIFI_AP_STATE_STARTED,
     WIFI_AP_STATE_CLIENT_CONNECTED,
