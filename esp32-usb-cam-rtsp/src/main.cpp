@@ -286,7 +286,7 @@ void setup() {
     Serial.println("                CONNECTION INFO");
     Serial.println("================================================");
     Serial.printf("  WiFi:    %s / %s\n", WIFI_SSID, WIFI_PASS);
-    Serial.printf("  RTSP:    rtsp://%s:%d/mjpeg/1\n", 
+    Serial.printf("  RTSP:    rtsp://%s:%d/stream\n", 
                   WiFi.softAPIP().toString().c_str(), RTSP_PORT);
     Serial.printf("  MAVLink: UDP %s:%d\n", 
                   WiFi.softAPIP().toString().c_str(), MAVLINK_UDP_PORT);
