@@ -24,7 +24,7 @@
 #endif
 
 #ifndef MAVLINK_UART_BAUD
-#define MAVLINK_UART_BAUD 115200
+#define MAVLINK_UART_BAUD 57600
 #endif
 
 #ifndef MAVLINK_UDP_PORT

@@ -56,7 +56,7 @@ const char* WIFI_PASS = "12345678";
 #define MAVLINK_UART_NUM   1
 #define MAVLINK_UART_TX    1   // GPIO1 (U0TXD - shared with USB debug!)
 #define MAVLINK_UART_RX    3   // GPIO3 (U0RXD - shared with USB debug!)
-#define MAVLINK_UART_BAUD  115200
+#define MAVLINK_UART_BAUD  57600
 #define MAVLINK_UDP_PORT   14550
 
 // Frame rate control - değiştirilebilir ayarlar
@@ -91,9 +91,14 @@ uint16_t gcsPort = 0;
 bool gcsConnected = false;
 uint8_t mavlinkBuffer[512];
 
+// Broadcast address for sending to all connected clients
+IPAddress broadcastAddress(192, 168, 4, 255);
+
 // Statistics
 uint32_t frameCount = 0;
 uint32_t lastStatsTime = 0;
+uint32_t mavlinkRxBytes = 0;
+uint32_t mavlinkTxBytes = 0;
 
 // ============================================
 // MAVLINK BRIDGE FUNCTIONS
@@ -113,11 +118,20 @@ void mavlinkInit() {
 
 void mavlinkLoop() {
     // ===== UART -> UDP (Pixhawk to GCS) =====
+    // Broadcast to all clients OR send to specific GCS if connected
     int available = Serial1.available();
-    if (available > 0 && gcsConnected) {
+    if (available > 0) {
         int len = Serial1.readBytes(mavlinkBuffer, min(available, (int)sizeof(mavlinkBuffer)));
         if (len > 0) {
-            mavlinkUdp.beginPacket(gcsAddress, gcsPort);
+            mavlinkRxBytes += len;  // Track received bytes from Pixhawk
+            
+            if (gcsConnected) {
+                // Send to specific GCS address
+                mavlinkUdp.beginPacket(gcsAddress, gcsPort);
+            } else {
+                // Broadcast to all clients on the network
+                mavlinkUdp.beginPacket(broadcastAddress, MAVLINK_UDP_PORT);
+            }
             mavlinkUdp.write(mavlinkBuffer, len);
             mavlinkUdp.endPacket();
         }
@@ -141,6 +155,7 @@ void mavlinkLoop() {
         // Forward to Pixhawk via UART
         int len = mavlinkUdp.read(mavlinkBuffer, sizeof(mavlinkBuffer));
         if (len > 0) {
+            mavlinkTxBytes += len;  // Track sent bytes to Pixhawk
             Serial1.write(mavlinkBuffer, len);
         }
     }
@@ -238,12 +253,18 @@ void printStats() {
     uint32_t now = millis();
     if (now - lastStatsTime >= 10000) {  // Every 10 seconds
         float fps = frameCount * 1000.0f / (now - lastStatsTime);
-        Serial.printf("[Stats] FPS: %.1f, Heap: %d KB, Clients: %d, GCS: %s\n",
+        Serial.printf("[Stats] FPS: %.1f, Heap: %d KB, RTSP: %d, GCS: %s\n",
                      fps,
                      ESP.getFreeHeap() / 1024,
                      session ? 1 : 0,
                      gcsConnected ? "Yes" : "No");
+        Serial.printf("[MAVLink] RX from Pixhawk: %d bytes, TX to Pixhawk: %d bytes\n",
+                     mavlinkRxBytes, mavlinkTxBytes);
+        
+        // Reset counters
         frameCount = 0;
+        mavlinkRxBytes = 0;
+        mavlinkTxBytes = 0;
         lastStatsTime = now;
     }
 }
