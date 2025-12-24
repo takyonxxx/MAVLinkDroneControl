@@ -22,11 +22,28 @@
 		9CC5ADCD2EE43D270021F292 /* MainDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CC5ADCC2EE43D270021F292 /* MainDashboardView.swift */; };
 		9CC5ADCF2EE445400021F292 /* StatusBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CC5ADCE2EE445400021F292 /* StatusBar.swift */; };
 		9CE33AEF2EEB2F400056073C /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CE33AEE2EEB2F400056073C /* SettingsManager.swift */; };
+		9CE4AB992EFC3CE500AA4E13 /* MobileVLCKit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9CE4AB972EFC3CB700AA4E13 /* MobileVLCKit.xcframework */; };
+		9CE4AB9A2EFC3CE500AA4E13 /* MobileVLCKit.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 9CE4AB972EFC3CB700AA4E13 /* MobileVLCKit.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		A6C03FAB3640D8EB35C69E8B /* DroneControlApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2311F05382E3E35ABA13412D /* DroneControlApp.swift */; };
 		A92954C96BE9E98870DD4C36 /* ControlPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81498F5922D9EF486B170AC0 /* ControlPanelView.swift */; };
 		BB1F01B3F288919D0206F4B2 /* UDPConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45D3CD6A9DE34134CD2CF226 /* UDPConnection.swift */; };
 		F870771B72104EB36B5FD4B8 /* ConnectionStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B4BAB5B509BAF9C5F59A66 /* ConnectionStatusView.swift */; };
+		RTSP0001229E0F9C00000001 /* RTSPPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = RTSP0001229E0F9C00000011 /* RTSPPlayerView.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		9CE4AB9B2EFC3CE500AA4E13 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				9CE4AB9A2EFC3CE500AA4E13 /* MobileVLCKit.xcframework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		071BB79654658DFAC1B3D53B /* JoystickView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoystickView.swift; sourceTree = "<group>"; };
@@ -47,11 +64,13 @@
 		9CC5ADCC2EE43D270021F292 /* MainDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainDashboardView.swift; sourceTree = "<group>"; };
 		9CC5ADCE2EE445400021F292 /* StatusBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBar.swift; sourceTree = "<group>"; };
 		9CE33AEE2EEB2F400056073C /* SettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManager.swift; sourceTree = "<group>"; };
+		9CE4AB972EFC3CB700AA4E13 /* MobileVLCKit.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = MobileVLCKit.xcframework; sourceTree = "<group>"; };
 		BA0619F09DCF953B0DE76FD2 /* MAVLinkManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MAVLinkManager.swift; sourceTree = "<group>"; };
 		BB937ACECF12A96C94E682A1 /* ServoMonitorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServoMonitorView.swift; sourceTree = "<group>"; };
 		C047821F89B40AAA79C1E6CC /* MAVLinkProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MAVLinkProtocol.swift; sourceTree = "<group>"; };
 		CA39A6C158533A30C36017F4 /* DroneControl.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DroneControl.entitlements; sourceTree = "<group>"; };
 		ECF3F6EDA3A4710E2C472690 /* DroneControl.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DroneControl.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		RTSP0001229E0F9C00000011 /* RTSPPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RTSPPlayerView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -59,6 +78,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9CE4AB992EFC3CE500AA4E13 /* MobileVLCKit.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -89,6 +109,7 @@
 				58CC8ABCC49EBB75E19499DB /* SettingsView.swift */,
 				9CC5ADCA2EE43D050021F292 /* AttitudeIndicator.swift */,
 				9CC5ADCC2EE43D270021F292 /* MainDashboardView.swift */,
+				RTSP0001229E0F9C00000011 /* RTSPPlayerView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -107,6 +128,13 @@
 				9C8155072EE74D70004EEB8A /* MapModels.swift */,
 			);
 			path = Models;
+			sourceTree = "<group>";
+		};
+		C33B98A4B1A61CB5901AC96D /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Pods;
 			sourceTree = "<group>";
 		};
 		D8DC95104139FDD973649491 /* DroneControl */ = {
@@ -131,6 +159,8 @@
 			children = (
 				D8DC95104139FDD973649491 /* DroneControl */,
 				80F8CB8DF072905C07A76BF2 /* Products */,
+				C33B98A4B1A61CB5901AC96D /* Pods */,
+				9CE4AB972EFC3CB700AA4E13 /* MobileVLCKit.xcframework */,
 			);
 			sourceTree = "<group>";
 		};
@@ -144,6 +174,7 @@
 				F6303239C1502EACA949F2E4 /* Sources */,
 				2F767F429F26453D66E7C78F /* Frameworks */,
 				7B6679ABF2102FBD59719EF1 /* Resources */,
+				9CE4AB9B2EFC3CE500AA4E13 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -221,6 +252,7 @@
 				F870771B72104EB36B5FD4B8 /* ConnectionStatusView.swift in Sources */,
 				A92954C96BE9E98870DD4C36 /* ControlPanelView.swift in Sources */,
 				38BC820555B3377A78682069 /* SettingsView.swift in Sources */,
+				RTSP0001229E0F9C00000001 /* RTSPPlayerView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -156,17 +156,17 @@ struct VideoStreamCard: View {
                             }
                             
                             URLPresetButton(
-                                title: "SIYI Kamera",
-                                url: "rtsp://192.168.144.25:8554/main.264"
+                                title: "Stream0",
+                                url: "rtsp://192.168.1.249:554/stream0"
                             ) {
-                                tempURL = "rtsp://192.168.144.25:8554/main.264"
+                                tempURL = "rtsp://192.168.1.249:554/stream0"
                             }
                             
                             URLPresetButton(
-                                title: "BlueOS",
-                                url: "rtsp://192.168.2.2:8554/video"
+                                title: "Stream1",
+                                url: "rtsp://192.168.1.249:554/stream1"
                             ) {
-                                tempURL = "rtsp://192.168.2.2:8554/video"
+                                tempURL = "rtsp://192.168.1.249:554/stream1"
                             }
                         }
                     }
