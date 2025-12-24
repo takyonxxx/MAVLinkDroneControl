@@ -4,7 +4,7 @@ ESP32-CAM modülü için RTSP video streaming ve MAVLink telemetri köprüsü.
 
 ## Özellikler
 
-- **RTSP Video Streaming**: VGA 640x480 @ ~10fps
+- **RTSP Video Streaming**: XGA 1024x768 @ ~10fps
 - **MAVLink Bridge**: UART<->UDP telemetri köprüsü (Pixhawk uyumlu)
 - **WiFi Access Point**: Bağımsız çalışma modu
 - **PSRAM Desteği**: Yüksek çözünürlük için 4MB PSRAM
