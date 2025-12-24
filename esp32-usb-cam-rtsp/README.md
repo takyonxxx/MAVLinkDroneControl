@@ -48,16 +48,16 @@ pio run -t upload
 |--------|-------|
 | WiFi SSID | PixhawkDrone |
 | WiFi Şifre | 12345678 |
-| RTSP URL | rtsp://192.168.4.1:8554/mjpeg/1 |
+| RTSP URL | rtsp://192.168.4.1:554/stream |
 | MAVLink UDP | 192.168.4.1:14550 |
 
 ### RTSP Test
 ```bash
 # FFplay ile
-ffplay -rtsp_transport tcp rtsp://192.168.4.1:8554/mjpeg/1
+ffplay -rtsp_transport tcp rtsp://192.168.4.1:554/stream
 
 # VLC ile
-vlc rtsp://192.168.4.1:8554/mjpeg/1
+vlc rtsp://192.168.4.1:554/stream
 ```
 
 ### QGroundControl MAVLink Bağlantısı
