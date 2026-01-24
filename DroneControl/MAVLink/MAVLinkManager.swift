@@ -375,6 +375,15 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
         sendMessage(msg)
     }
     
+    // Convenience methods for gamepad
+    func arm() {
+        armVehicle(force: true)
+    }
+    
+    func disarm() {
+        disarmVehicle(force: true)
+    }
+    
     func setMode(customMode: UInt32) {
         print("✈️ Setting mode: \(customMode)")
         var msg = mavlink_message_t()
@@ -390,6 +399,10 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
     
     func setFlightMode(_ mode: CopterFlightMode) {
         setMode(customMode: mode.rawValue)
+    }
+    
+    func setFlightMode(_ customMode: UInt32) {
+        setMode(customMode: customMode)
     }
     
     func sendManualControl(x: Int16, y: Int16, z: Int16, r: Int16,

@@ -11,35 +11,33 @@ struct SettingsView: View {
     @State private var showParameters = false
     
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Connection Settings
-                    ConnectionCard(
-                        host: $settings.connectionHost,
-                        port: $settings.connectionPort
-                    )
-                    
-                    // Video Stream Settings
-                    VideoStreamCard(rtspURL: $settings.rtspURL)
-                    
-                    // Telemetry Status
-                    TelemetryStatusCard()
-                    
-                    // System Info
-                    SystemInfoCard()
-                    
-                    // Parameters
-                    ParametersCard(showParameters: $showParameters)
-                }
-                .padding()
+        ScrollView {
+            VStack(spacing: 20) {
+                // Connection Settings
+                ConnectionCard(
+                    host: $settings.connectionHost,
+                    port: $settings.connectionPort
+                )
+                
+                // Gamepad Settings (macOS)
+                #if os(macOS)
+                GamepadSettingsCard()
+                #endif
+                
+                // Telemetry Status
+                TelemetryStatusCard()
+                
+                // System Info
+                SystemInfoCard()
+                
+                // Parameters
+                ParametersCard(showParameters: $showParameters)
             }
-            .background(Color(red: 0.05, green: 0.05, blue: 0.1))
-            .navigationTitle("Settings")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
+            .padding()
+            .frame(maxWidth: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(red: 0.05, green: 0.05, blue: 0.1))
     }
 }
 
@@ -88,114 +86,126 @@ struct ConnectionCard: View {
     }
 }
 
-// MARK: - Video Stream Card
-struct VideoStreamCard: View {
-    @Binding var rtspURL: String
-    @State private var tempURL: String = ""
-    @State private var isEditing = false
+// MARK: - Gamepad Settings Card (macOS only)
+#if os(macOS)
+struct GamepadSettingsCard: View {
+    @StateObject private var settings = SettingsManager.shared
+    @StateObject private var gamepadManager = GamepadManager.shared
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Label("Video Stream", systemImage: "video.fill")
+                Label("Gamepad Settings", systemImage: "gamecontroller.fill")
                     .font(.system(size: 18, weight: .bold))
                     .foregroundColor(.white)
                 
                 Spacer()
                 
-                // Edit/Save button
-                Button(action: {
-                    if isEditing {
-                        // Save the new URL
-                        rtspURL = tempURL
-                        isEditing = false
-                    } else {
-                        // Start editing
-                        tempURL = rtspURL
-                        isEditing = true
-                    }
-                }) {
-                    Text(isEditing ? "Kaydet" : "Düzenle")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.cyan)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.cyan.opacity(0.2))
-                        .cornerRadius(8)
+                // Connection status
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(gamepadManager.isControllerConnected ? Color.green : Color.red)
+                        .frame(width: 10, height: 10)
+                    Text(gamepadManager.isControllerConnected ? "Connected" : "Disconnected")
+                        .font(.system(size: 12))
+                        .foregroundColor(.gray)
                 }
             }
             
-            VStack(spacing: 12) {
-                // Current URL Display or Edit Field
-                if isEditing {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("RTSP URL")
-                            .font(.system(size: 13))
-                            .foregroundColor(.gray)
-                        
-                        TextField("rtsp://192.168.4.1:554/stream", text: $tempURL)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-                            .font(.system(size: 13, design: .monospaced))
-                            #if os(iOS)
-                            .keyboardType(.URL)
-                            .autocapitalization(.none)
-                            #endif
-                        
-                        // Common presets
-                        Text("Hazır Şablonlar:")
-                            .font(.system(size: 12))
-                            .foregroundColor(.gray)
-                            .padding(.top, 4)
-                        
-                        VStack(spacing: 6) {
-                            URLPresetButton(
-                                title: "ESP32 (WiFi)",
-                                url: "rtsp://192.168.4.1:554/stream"
-                            ) {
-                                tempURL = "rtsp://192.168.4.1:554/stream"
-                            }
-                            
-                            URLPresetButton(
-                                title: "Stream0",
-                                url: "rtsp://192.168.1.249:554/stream0"
-                            ) {
-                                tempURL = "rtsp://192.168.1.249:554/stream0"
-                            }
-                            
-                            URLPresetButton(
-                                title: "Stream1",
-                                url: "rtsp://192.168.1.249:554/stream1"
-                            ) {
-                                tempURL = "rtsp://192.168.1.249:554/stream1"
-                            }
-                        }
-                    }
-                } else {
-                    // Display current URL
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Aktif URL")
-                            .font(.system(size: 13))
-                            .foregroundColor(.gray)
-                        
-                        Text(rtspURL)
-                            .font(.system(size: 13, design: .monospaced))
-                            .foregroundColor(.cyan)
-                            .padding(10)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color(red: 0.15, green: 0.15, blue: 0.2))
-                            .cornerRadius(8)
-                    }
+            // Controller name
+            if gamepadManager.isControllerConnected {
+                HStack {
+                    Text("Controller")
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                    Spacer()
+                    Text(gamepadManager.controllerName)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.cyan)
+                }
+            }
+            
+            Divider()
+                .background(Color.gray.opacity(0.3))
+            
+            // Deadzone slider
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Deadzone")
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                    Spacer()
+                    Text(String(format: "%.2f", settings.gamepadDeadzone))
+                        .font(.system(size: 14, design: .monospaced))
+                        .foregroundColor(.cyan)
                 }
                 
-                // Info text
-                HStack(spacing: 6) {
-                    Image(systemName: "info.circle.fill")
-                        .font(.system(size: 12))
-                        .foregroundColor(.blue)
-                    
-                    Text("URL değişikliği video akışını otomatik olarak yeniden başlatır")
+                Slider(value: $settings.gamepadDeadzone, in: 0.0...0.3, step: 0.01)
+                    .accentColor(.cyan)
+                    .onChange(of: settings.gamepadDeadzone) { newValue in
+                        gamepadManager.deadzone = newValue
+                    }
+            }
+            
+            // Hold Throttle toggle
+            Toggle(isOn: $settings.gamepadHoldThrottle) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Hold Throttle Position")
+                        .font(.system(size: 14))
+                        .foregroundColor(.white)
+                    Text("Throttle stays at last position instead of returning to center")
                         .font(.system(size: 11))
                         .foregroundColor(.gray)
+                }
+            }
+            .toggleStyle(SwitchToggleStyle(tint: .cyan))
+            .onChange(of: settings.gamepadHoldThrottle) { newValue in
+                gamepadManager.holdThrottle = newValue
+            }
+            
+            // Throttle Speed slider (only when Hold Throttle is ON)
+            if settings.gamepadHoldThrottle {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Throttle Speed")
+                            .font(.system(size: 14))
+                            .foregroundColor(.gray)
+                        Spacer()
+                        Text(String(format: "%.3f", settings.throttleSpeed))
+                            .font(.system(size: 14, design: .monospaced))
+                            .foregroundColor(.cyan)
+                    }
+                    
+                    Slider(value: $settings.throttleSpeed, in: 0.005...0.05, step: 0.005)
+                        .accentColor(.cyan)
+                    
+                    HStack {
+                        Text("Slow")
+                            .font(.system(size: 10))
+                            .foregroundColor(.gray)
+                        Spacer()
+                        Text("Fast")
+                            .font(.system(size: 10))
+                            .foregroundColor(.gray)
+                    }
+                }
+            }
+            
+            Divider()
+                .background(Color.gray.opacity(0.3))
+            
+            // Button mapping info
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Button Mapping")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    ButtonMappingRow(button: "Left Stick", action: "Throttle (Y) / Yaw (X)")
+                    ButtonMappingRow(button: "Right Stick", action: "Pitch (Y) / Roll (X)")
+                    ButtonMappingRow(button: "Start", action: "ARM")
+                    ButtonMappingRow(button: "Back", action: "DISARM")
+                    ButtonMappingRow(button: "L3 / R3", action: "Reset All")
                 }
             }
         }
@@ -205,33 +215,25 @@ struct VideoStreamCard: View {
     }
 }
 
-// MARK: - URL Preset Button
-struct URLPresetButton: View {
-    let title: String
-    let url: String
-    let action: () -> Void
+struct ButtonMappingRow: View {
+    let button: String
+    let action: String
     
     var body: some View {
-        Button(action: action) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.white)
-                    Text(url)
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundColor(.gray)
-                }
-                Spacer()
-                Image(systemName: "arrow.right.circle.fill")
-                    .foregroundColor(.cyan)
-            }
-            .padding(10)
-            .background(Color(red: 0.15, green: 0.15, blue: 0.2))
-            .cornerRadius(8)
+        HStack {
+            Text(button)
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundColor(.orange)
+                .frame(width: 100, alignment: .leading)
+            Text("→")
+                .foregroundColor(.gray)
+            Text(action)
+                .font(.system(size: 12))
+                .foregroundColor(.gray)
         }
     }
 }
+#endif
 
 // MARK: - Telemetry Status Card
 struct TelemetryStatusCard: View {
@@ -239,7 +241,7 @@ struct TelemetryStatusCard: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Label("Telemetry", systemImage: "antenna.radiowaves.left.and.right")
+            Label("Telemetry Status", systemImage: "antenna.radiowaves.left.and.right")
                 .font(.system(size: 18, weight: .bold))
                 .foregroundColor(.white)
             
@@ -252,8 +254,8 @@ struct TelemetryStatusCard: View {
                 
                 TelemetryRow(
                     label: "Armed",
-                    value: mavlinkManager.isArmed ? "Yes" : "No",
-                    color: mavlinkManager.isArmed ? .orange : .gray
+                    value: mavlinkManager.isArmed ? "ARMED" : "Disarmed",
+                    color: mavlinkManager.isArmed ? .red : .green
                 )
                 
                 TelemetryRow(
@@ -403,6 +405,9 @@ struct ParametersCard: View {
                 .background(Color.cyan.opacity(0.1))
                 .cornerRadius(8)
             }
+            #if os(macOS)
+            .buttonStyle(.plain)
+            #endif
             
             if showParameters {
                 ScrollView {

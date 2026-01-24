@@ -26,7 +26,7 @@
 		<true/>
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Bu uygulama, MAVLink protokolü üzerinden drone ile iletişim kurmak ve RTSP video akışı izlemek için yerel ağ erişimine ihtiyaç duyar.</string>
+	<string>Bu uygulama, MAVLink protokolü üzerinden drone ile iletişim kurmak için yerel ağ erişimine ihtiyaç duyar.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

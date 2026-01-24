@@ -2,9 +2,17 @@
 //  EnhancedMapView.swift
 //  DroneControl
 //
+//  Cross-platform map view for iOS and macOS
+//
 
 import SwiftUI
 import MapKit
+
+#if os(iOS)
+import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 struct EnhancedMapView: View {
     @ObservedObject var mavlinkManager: MAVLinkManager
@@ -45,6 +53,9 @@ struct EnhancedMapView: View {
                                     .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
                             )
                     }
+                    #if os(macOS)
+                    .buttonStyle(.plain)
+                    #endif
                     
                     Spacer()
                     
@@ -68,6 +79,9 @@ struct EnhancedMapView: View {
                         )
                         .foregroundColor(.white)
                     }
+                    #if os(macOS)
+                    .buttonStyle(.plain)
+                    #endif
                 }
                 .padding(.horizontal, 12)
                 .padding(.bottom, 30)
@@ -103,6 +117,9 @@ struct EnhancedMapView: View {
     }
 }
 
+// MARK: - Platform-specific MapKitView
+
+#if os(iOS)
 struct MapKitView: UIViewRepresentable {
     @ObservedObject var mapViewModel: EnhancedMapViewModel
     @ObservedObject var mavlinkManager: MAVLinkManager
@@ -127,6 +144,14 @@ struct MapKitView: UIViewRepresentable {
     }
     
     func updateUIView(_ mapView: MKMapView, context: Context) {
+        updateMapView(mapView)
+    }
+    
+    func makeCoordinator() -> MapCoordinator {
+        MapCoordinator(self)
+    }
+    
+    private func updateMapView(_ mapView: MKMapView) {
         let oldOverlays = mapView.overlays.filter { $0 is MKPolyline }
         mapView.removeOverlays(oldOverlays)
         
@@ -146,94 +171,200 @@ struct MapKitView: UIViewRepresentable {
             mapView.addAnnotation(annotation)
         }
     }
+}
+#elseif os(macOS)
+struct MapKitView: NSViewRepresentable {
+    @ObservedObject var mapViewModel: EnhancedMapViewModel
+    @ObservedObject var mavlinkManager: MAVLinkManager
     
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
+    func makeNSView(context: Context) -> MKMapView {
+        let mapView = MKMapView()
+        mapView.delegate = context.coordinator
+        mapView.mapType = .satellite
+        mapView.showsCompass = true
+        mapView.showsScale = true
+        
+        let region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 39.9334, longitude: 32.8597),
+            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+        )
+        mapView.setRegion(region, animated: false)
+        
+        context.coordinator.mapView = mapView
+        mapViewModel.setMapView(mapView)
+        
+        return mapView
     }
     
-    class Coordinator: NSObject, MKMapViewDelegate {
-        var parent: MapKitView
-        var mapView: MKMapView?
+    func updateNSView(_ mapView: MKMapView, context: Context) {
+        updateMapView(mapView)
+    }
+    
+    func makeCoordinator() -> MapCoordinator {
+        MapCoordinator(self)
+    }
+    
+    private func updateMapView(_ mapView: MKMapView) {
+        let oldOverlays = mapView.overlays.filter { $0 is MKPolyline }
+        mapView.removeOverlays(oldOverlays)
         
-        init(_ parent: MapKitView) {
-            self.parent = parent
+        if mapViewModel.flightPath.count > 1 {
+            let polyline = MKPolyline(coordinates: mapViewModel.flightPath, count: mapViewModel.flightPath.count)
+            mapView.addOverlay(polyline)
         }
         
-        func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
-            if let polyline = overlay as? MKPolyline {
-                let renderer = MKPolylineRenderer(polyline: polyline)
-                renderer.strokeColor = UIColor(red: 1.0, green: 0.8, blue: 0.0, alpha: 0.9)
-                renderer.lineWidth = 4
-                renderer.lineCap = .round
-                renderer.lineJoin = .round
-                return renderer
-            }
-            return MKOverlayRenderer(overlay: overlay)
-        }
+        let oldAnnotations = mapView.annotations.filter { !($0 is MKUserLocation) }
+        mapView.removeAnnotations(oldAnnotations)
         
-        func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
-            guard let droneAnnotation = annotation as? DroneAnnotation else {
-                return nil
-            }
-            
-            let identifier = "DroneAnnotation"
-            var annotationView = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
-            
-            if annotationView == nil {
-                annotationView = MKAnnotationView(annotation: annotation, reuseIdentifier: identifier)
-                annotationView?.canShowCallout = false
-            } else {
-                annotationView?.annotation = annotation
-            }
-            
-            let droneImage = createDroneImage(heading: droneAnnotation.heading)
-            annotationView?.image = droneImage
-            annotationView?.centerOffset = CGPoint(x: 0, y: 0)
-            
-            return annotationView
-        }
-        
-        private func createDroneImage(heading: Double) -> UIImage {
-            let size = CGSize(width: 60, height: 60)
-            let renderer = UIGraphicsImageRenderer(size: size)
-            
-            return renderer.image { context in
-                let ctx = context.cgContext
-                
-                let gradient = CGGradient(
-                    colorsSpace: CGColorSpaceCreateDeviceRGB(),
-                    colors: [
-                        UIColor.cyan.withAlphaComponent(0.6).cgColor,
-                        UIColor.cyan.withAlphaComponent(0.0).cgColor
-                    ] as CFArray,
-                    locations: [0.0, 1.0]
-                )!
-                ctx.drawRadialGradient(
-                    gradient,
-                    startCenter: CGPoint(x: size.width/2, y: size.height/2),
-                    startRadius: 0,
-                    endCenter: CGPoint(x: size.width/2, y: size.height/2),
-                    endRadius: size.width/2,
-                    options: []
-                )
-                
-                ctx.translateBy(x: size.width / 2, y: size.height / 2)
-                ctx.rotate(by: CGFloat(heading * .pi / 180))
-                ctx.translateBy(x: -size.width / 2, y: -size.height / 2)
-                
-                let config = UIImage.SymbolConfiguration(pointSize: 36, weight: .medium)
-                let droneIcon = UIImage(systemName: "airplane.circle.fill", withConfiguration: config)?
-                    .withTintColor(.cyan, renderingMode: .alwaysOriginal)
-                
-                ctx.setFillColor(UIColor.white.cgColor)
-                ctx.fillEllipse(in: CGRect(x: 9, y: 9, width: 42, height: 42))
-                
-                droneIcon?.draw(in: CGRect(x: 12, y: 12, width: 36, height: 36))
-            }
+        if let droneLocation = mapViewModel.currentDroneLocation {
+            let annotation = DroneAnnotation(
+                coordinate: droneLocation.coordinate,
+                heading: droneLocation.heading
+            )
+            mapView.addAnnotation(annotation)
         }
     }
 }
+#endif
 
+// MARK: - Map Coordinator (Shared)
+class MapCoordinator: NSObject, MKMapViewDelegate {
+    var parent: MapKitView
+    var mapView: MKMapView?
+    
+    init(_ parent: MapKitView) {
+        self.parent = parent
+    }
+    
+    func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+        if let polyline = overlay as? MKPolyline {
+            let renderer = MKPolylineRenderer(polyline: polyline)
+            #if os(iOS)
+            renderer.strokeColor = UIColor(red: 1.0, green: 0.8, blue: 0.0, alpha: 0.9)
+            #elseif os(macOS)
+            renderer.strokeColor = NSColor(red: 1.0, green: 0.8, blue: 0.0, alpha: 0.9)
+            #endif
+            renderer.lineWidth = 4
+            renderer.lineCap = .round
+            renderer.lineJoin = .round
+            return renderer
+        }
+        return MKOverlayRenderer(overlay: overlay)
+    }
+    
+    func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+        guard let droneAnnotation = annotation as? DroneAnnotation else {
+            return nil
+        }
+        
+        let identifier = "DroneAnnotation"
+        var annotationView = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
+        
+        if annotationView == nil {
+            annotationView = MKAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+            annotationView?.canShowCallout = false
+        } else {
+            annotationView?.annotation = annotation
+        }
+        
+        let droneImage = createDroneImage(heading: droneAnnotation.heading)
+        annotationView?.image = droneImage
+        annotationView?.centerOffset = CGPoint(x: 0, y: 0)
+        
+        return annotationView
+    }
+    
+    #if os(iOS)
+    private func createDroneImage(heading: Double) -> UIImage {
+        let size = CGSize(width: 60, height: 60)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        
+        return renderer.image { context in
+            let ctx = context.cgContext
+            
+            let gradient = CGGradient(
+                colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                colors: [
+                    UIColor.cyan.withAlphaComponent(0.6).cgColor,
+                    UIColor.cyan.withAlphaComponent(0.0).cgColor
+                ] as CFArray,
+                locations: [0.0, 1.0]
+            )!
+            ctx.drawRadialGradient(
+                gradient,
+                startCenter: CGPoint(x: size.width/2, y: size.height/2),
+                startRadius: 0,
+                endCenter: CGPoint(x: size.width/2, y: size.height/2),
+                endRadius: size.width/2,
+                options: []
+            )
+            
+            ctx.translateBy(x: size.width / 2, y: size.height / 2)
+            ctx.rotate(by: CGFloat(heading * .pi / 180))
+            ctx.translateBy(x: -size.width / 2, y: -size.height / 2)
+            
+            let config = UIImage.SymbolConfiguration(pointSize: 36, weight: .medium)
+            let droneIcon = UIImage(systemName: "airplane.circle.fill", withConfiguration: config)?
+                .withTintColor(.cyan, renderingMode: .alwaysOriginal)
+            
+            ctx.setFillColor(UIColor.white.cgColor)
+            ctx.fillEllipse(in: CGRect(x: 9, y: 9, width: 42, height: 42))
+            
+            droneIcon?.draw(in: CGRect(x: 12, y: 12, width: 36, height: 36))
+        }
+    }
+    #elseif os(macOS)
+    private func createDroneImage(heading: Double) -> NSImage {
+        let size = CGSize(width: 60, height: 60)
+        let image = NSImage(size: size)
+        
+        image.lockFocus()
+        
+        guard let ctx = NSGraphicsContext.current?.cgContext else {
+            image.unlockFocus()
+            return image
+        }
+        
+        // Gradient background
+        let gradient = CGGradient(
+            colorsSpace: CGColorSpaceCreateDeviceRGB(),
+            colors: [
+                NSColor.cyan.withAlphaComponent(0.6).cgColor,
+                NSColor.cyan.withAlphaComponent(0.0).cgColor
+            ] as CFArray,
+            locations: [0.0, 1.0]
+        )!
+        ctx.drawRadialGradient(
+            gradient,
+            startCenter: CGPoint(x: size.width/2, y: size.height/2),
+            startRadius: 0,
+            endCenter: CGPoint(x: size.width/2, y: size.height/2),
+            endRadius: size.width/2,
+            options: []
+        )
+        
+        // Rotate for heading
+        ctx.translateBy(x: size.width / 2, y: size.height / 2)
+        ctx.rotate(by: CGFloat(heading * .pi / 180))
+        ctx.translateBy(x: -size.width / 2, y: -size.height / 2)
+        
+        // White background circle
+        ctx.setFillColor(NSColor.white.cgColor)
+        ctx.fillEllipse(in: CGRect(x: 9, y: 9, width: 42, height: 42))
+        
+        // Drone icon
+        if let droneIcon = NSImage(systemSymbolName: "airplane.circle.fill", accessibilityDescription: nil) {
+            let iconRect = CGRect(x: 12, y: 12, width: 36, height: 36)
+            droneIcon.draw(in: iconRect, from: .zero, operation: .sourceOver, fraction: 1.0)
+        }
+        
+        image.unlockFocus()
+        return image
+    }
+    #endif
+}
+
+// MARK: - Drone Annotation
 class DroneAnnotation: NSObject, MKAnnotation {
     dynamic var coordinate: CLLocationCoordinate2D
     var heading: Double
@@ -245,6 +376,7 @@ class DroneAnnotation: NSObject, MKAnnotation {
     }
 }
 
+// MARK: - Enhanced Map View Model
 class EnhancedMapViewModel: ObservableObject {
     @Published var currentDroneLocation: DroneLocation?
     @Published var flightPath: [CLLocationCoordinate2D] = []

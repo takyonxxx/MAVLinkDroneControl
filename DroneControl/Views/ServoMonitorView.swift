@@ -16,37 +16,33 @@ struct ServoMonitorView: View {
     ]
     
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Servo grid
-                    LazyVGrid(columns: columns, spacing: 12) {
-                        ForEach(1...16, id: \.self) { channel in
-                            ServoCard(
-                                channel: channel,
-                                value: mavlinkManager.servoValues[channel] ?? 0
-                            )
-                        }
+        ScrollView {
+            VStack(spacing: 20) {
+                // Servo grid
+                LazyVGrid(columns: columns, spacing: 12) {
+                    ForEach(1...16, id: \.self) { channel in
+                        ServoCard(
+                            channel: channel,
+                            value: mavlinkManager.servoValues[channel] ?? 0
+                        )
                     }
                 }
-                .padding()
             }
-            .background(
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color(red: 0.1, green: 0.1, blue: 0.18),
-                        Color(red: 0.09, green: 0.13, blue: 0.24)
-                    ]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
-            )
-            .navigationTitle("Servo Monitor")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
+            .padding()
+            .frame(maxWidth: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color(red: 0.1, green: 0.1, blue: 0.18),
+                    Color(red: 0.09, green: 0.13, blue: 0.24)
+                ]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+        )
     }
 }
 

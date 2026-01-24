@@ -24,19 +24,21 @@ struct MainDashboardView: View {
                 .padding(.vertical, 8)
                 .background(Color(red: 0.08, green: 0.08, blue: 0.12))
                 
-                // Scrollable content
-                ScrollView {
-                    VStack(spacing: 12) {
-                        if isCompact {
-                            CompactLayout()
-                        } else {
-                            WideLayout()
-                        }
+                // Content
+                if isCompact {
+                    // iOS - Scrollable
+                    ScrollView {
+                        CompactLayout()
+                            .padding(.top, 10)
+                            .padding(.bottom, 24)
                     }
-                    .padding(.top, 10)
-                    .padding(.bottom, 24)
+                } else {
+                    // macOS - Full screen, no scroll
+                    WideLayout()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(red: 0.05, green: 0.05, blue: 0.1))
         }
     }
@@ -342,80 +344,93 @@ struct WideLayout: View {
     @EnvironmentObject var mavlinkManager: MAVLinkManager
     
     var body: some View {
-        HStack(spacing: 16) {
-            // Left - Telemetry
-            VStack(alignment: .leading, spacing: 12) {
-                TelemetryCard(
-                    icon: "battery.100",
-                    title: "Battery",
-                    value: String(format: "%.1fV", mavlinkManager.batteryVoltage),
-                    subtitle: "\(mavlinkManager.batteryRemaining)%",
-                    color: batteryColor(mavlinkManager.batteryRemaining)
-                )
-                
-                GPSTelemetryCard(
-                    fixType: Int(mavlinkManager.gpsFixType),
-                    satellites: Int(mavlinkManager.gpsSatellites),
-                    latitude: mavlinkManager.latitude,
-                    longitude: mavlinkManager.longitude
-                )
-                
-                TelemetryCard(
-                    icon: "arrow.up",
-                    title: "Altitude",
-                    value: String(format: "%.1fm", mavlinkManager.altitude),
-                    subtitle: String(format: "%.1fm/s", mavlinkManager.climbRate),
-                    color: .cyan
-                )
-                
-                TelemetryCard(
-                    icon: "speedometer",
-                    title: "Speed",
-                    value: String(format: "%.1fm/s", mavlinkManager.groundSpeed),
-                    subtitle: String(format: "%.1fkm/h", mavlinkManager.groundSpeed * 3.6),
-                    color: .green
-                )
-                
-                Spacer()
-            }
-            .frame(maxWidth: 200)
+        GeometryReader { geometry in
+            let totalWidth = geometry.size.width
+            let sideColumnWidth = max(200, totalWidth * 0.22)
+            let centerWidth = max(300, totalWidth * 0.45)
+            let indicatorSize = min(centerWidth - 40, geometry.size.height * 0.5)
             
-            // Center - Attitude
-            VStack(spacing: 12) {
-                AttitudeIndicator(
-                    roll: mavlinkManager.roll,
-                    pitch: mavlinkManager.pitch,
-                    heading: mavlinkManager.heading
-                )
-                .frame(width: 280, height: 280)
-                
-                HStack(spacing: 24) {
-                    AttitudeValue(label: "Roll", value: mavlinkManager.roll, unit: "°")
-                    AttitudeValue(label: "Pitch", value: mavlinkManager.pitch, unit: "°")
-                    AttitudeValue(label: "Yaw", value: mavlinkManager.yaw, unit: "°")
+            HStack(spacing: 20) {
+                // Left - Telemetry
+                VStack(alignment: .leading, spacing: 12) {
+                    TelemetryCard(
+                        icon: "battery.100",
+                        title: "Battery",
+                        value: String(format: "%.1fV", mavlinkManager.batteryVoltage),
+                        subtitle: "\(mavlinkManager.batteryRemaining)%",
+                        color: batteryColor(mavlinkManager.batteryRemaining)
+                    )
+                    
+                    GPSTelemetryCard(
+                        fixType: Int(mavlinkManager.gpsFixType),
+                        satellites: Int(mavlinkManager.gpsSatellites),
+                        latitude: mavlinkManager.latitude,
+                        longitude: mavlinkManager.longitude
+                    )
+                    
+                    TelemetryCard(
+                        icon: "arrow.up",
+                        title: "Altitude",
+                        value: String(format: "%.1fm", mavlinkManager.altitude),
+                        subtitle: String(format: "%.1fm/s", mavlinkManager.climbRate),
+                        color: .cyan
+                    )
+                    
+                    TelemetryCard(
+                        icon: "speedometer",
+                        title: "Speed",
+                        value: String(format: "%.1fm/s", mavlinkManager.groundSpeed),
+                        subtitle: String(format: "%.1fkm/h", mavlinkManager.groundSpeed * 3.6),
+                        color: .green
+                    )
+                    
+                    Spacer()
                 }
-            }
-            
-            // Right - Servos
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Servo Outputs")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.white)
+                .frame(width: sideColumnWidth)
                 
-                VStack(spacing: 6) {
-                    ForEach(1...8, id: \.self) { channel in
-                        ServoBar(
-                            channel: channel,
-                            pwm: mavlinkManager.servoValues[channel] ?? 0
-                        )
+                // Center - Attitude
+                VStack(spacing: 16) {
+                    Spacer()
+                    
+                    AttitudeIndicator(
+                        roll: mavlinkManager.roll,
+                        pitch: mavlinkManager.pitch,
+                        heading: mavlinkManager.heading
+                    )
+                    .frame(width: indicatorSize, height: indicatorSize)
+                    
+                    HStack(spacing: 30) {
+                        AttitudeValue(label: "Roll", value: mavlinkManager.roll, unit: "°")
+                        AttitudeValue(label: "Pitch", value: mavlinkManager.pitch, unit: "°")
+                        AttitudeValue(label: "Yaw", value: mavlinkManager.yaw, unit: "°")
                     }
+                    
+                    Spacer()
                 }
+                .frame(maxWidth: .infinity)
                 
-                Spacer()
+                // Right - Servos
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Servo Outputs")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white)
+                    
+                    VStack(spacing: 6) {
+                        ForEach(1...8, id: \.self) { channel in
+                            ServoBar(
+                                channel: channel,
+                                pwm: mavlinkManager.servoValues[channel] ?? 0
+                            )
+                        }
+                    }
+                    
+                    Spacer()
+                }
+                .frame(width: sideColumnWidth)
             }
-            .frame(maxWidth: 180)
+            .padding()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .padding()
     }
     
     private func batteryColor(_ percent: Int) -> Color {

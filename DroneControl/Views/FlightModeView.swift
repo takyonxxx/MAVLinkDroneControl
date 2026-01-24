@@ -21,51 +21,47 @@ struct FlightModeView: View {
     ]
     
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Current mode card
-                    CurrentModeCard()
-                    
-                    // Warning if armed
-                    if mavlinkManager.isArmed {
-                        HStack {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.orange)
-                            Text("Vehicle is armed - change modes carefully")
-                                .font(.caption)
-                                .foregroundColor(.orange)
-                        }
-                        .padding(10)
-                        .background(Color.orange.opacity(0.15))
-                        .cornerRadius(8)
+        ScrollView {
+            VStack(spacing: 20) {
+                // Current mode card
+                CurrentModeCard()
+                
+                // Warning if armed
+                if mavlinkManager.isArmed {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                        Text("Vehicle is armed - change modes carefully")
+                            .font(.caption)
+                            .foregroundColor(.orange)
                     }
-                    
-                    // Mode grid
-                    LazyVGrid(columns: columns, spacing: 12) {
-                        ForEach(availableModes, id: \.self) { mode in
-                            FlightModeButton(mode: mode)
-                        }
+                    .padding(10)
+                    .background(Color.orange.opacity(0.15))
+                    .cornerRadius(8)
+                }
+                
+                // Mode grid
+                LazyVGrid(columns: columns, spacing: 12) {
+                    ForEach(availableModes, id: \.self) { mode in
+                        FlightModeButton(mode: mode)
                     }
                 }
-                .padding()
             }
-            .background(
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color(red: 0.1, green: 0.1, blue: 0.18),
-                        Color(red: 0.09, green: 0.13, blue: 0.24)
-                    ]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
-            )
-            .navigationTitle("Flight Modes")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
+            .padding()
+            .frame(maxWidth: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color(red: 0.1, green: 0.1, blue: 0.18),
+                    Color(red: 0.09, green: 0.13, blue: 0.24)
+                ]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+        )
     }
 }
 

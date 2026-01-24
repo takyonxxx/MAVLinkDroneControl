@@ -2,11 +2,17 @@
 //  JoystickView.swift
 //  DroneControl
 //
+//  Touch joystick (iOS) + Gamepad support (macOS)
+//
 
 import SwiftUI
+import GameController
 
 struct JoystickView: View {
     @EnvironmentObject var mavlinkManager: MAVLinkManager
+    @ObservedObject var gamepadManager = GamepadManager.shared
+    
+    // Touch joystick pozisyonları
     @State private var leftJoystickPosition: CGPoint = CGPoint(x: 0, y: -1)  // Throttle minimum'da başlar
     @State private var rightJoystickPosition: CGPoint = .zero
     
@@ -25,28 +31,34 @@ struct JoystickView: View {
                     StatusBar()
                         .padding(.horizontal)
                     
+                    // Gamepad Status (macOS)
+                    #if os(macOS)
+                    GamepadStatusView()
+                        .padding(.horizontal)
+                    #endif
+                    
                     Spacer()
                     
                     // Values display
                     HStack(spacing: isCompact ? 16 : 40) {
                         ValueDisplay(
                             label: "Throttle",
-                            value: Int((leftJoystickPosition.y + 1.0) * 500),
+                            value: throttleValue,
                             isCompact: isCompact
                         )
                         ValueDisplay(
                             label: "Yaw",
-                            value: Int(leftJoystickPosition.x * 1000),
+                            value: yawValue,
                             isCompact: isCompact
                         )
                         ValueDisplay(
                             label: "Pitch",
-                            value: Int(rightJoystickPosition.y * 1000),
+                            value: pitchValue,
                             isCompact: isCompact
                         )
                         ValueDisplay(
                             label: "Roll",
-                            value: Int(rightJoystickPosition.x * 1000),
+                            value: rollValue,
                             isCompact: isCompact
                         )
                     }
@@ -64,7 +76,7 @@ struct JoystickView: View {
                                 returnToCenter: false
                             )
                             Text("Throttle / Yaw")
-                                .font(.system(size: isCompact ? 15 : 15, weight: .medium))
+                                .font(.system(size: isCompact ? 13 : 14, weight: .medium))
                                 .foregroundColor(.gray)
                         }
                         
@@ -76,60 +88,253 @@ struct JoystickView: View {
                                 returnToCenter: true
                             )
                             Text("Pitch / Roll")
-                                .font(.system(size: isCompact ? 15 : 15, weight: .medium))
+                                .font(.system(size: isCompact ? 13 : 14, weight: .medium))
                                 .foregroundColor(.gray)
                         }
                     }
                     
-                    // Reset Button
-                    Button(action: {
-                        withAnimation(.spring(response: 0.3)) {
-                            leftJoystickPosition = CGPoint(x: 0, y: -1)  // Throttle minimum'a döner
-                            rightJoystickPosition = .zero
-                        }
-                    }) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "arrow.counterclockwise")
-                                .font(.system(size: 16, weight: .semibold))
-                            Text("Reset Joysticks")
-                                .font(.system(size: 16, weight: .semibold))
-                        }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.2, green: 0.4, blue: 0.8),
-                                    Color(red: 0.3, green: 0.5, blue: 0.9)
-                                ],
-                                startPoint: .leading,
-                                endPoint: .trailing
+                    // Control Buttons
+                    HStack(spacing: 20) {
+                        // Reset Button
+                        Button(action: {
+                            withAnimation(.spring(response: 0.3)) {
+                                leftJoystickPosition = CGPoint(x: 0, y: -1)
+                                rightJoystickPosition = .zero
+                                gamepadManager.resetAll()
+                            }
+                        }) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "arrow.counterclockwise")
+                                    .font(.system(size: 16, weight: .semibold))
+                                Text("Reset")
+                                    .font(.system(size: 16, weight: .semibold))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 12)
+                            .background(
+                                LinearGradient(
+                                    colors: [
+                                        Color(red: 0.2, green: 0.4, blue: 0.8),
+                                        Color(red: 0.3, green: 0.5, blue: 0.9)
+                                    ],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
                             )
-                        )
-                        .cornerRadius(12)
-                        .shadow(color: Color.blue.opacity(0.3), radius: 8, y: 4)
+                            .cornerRadius(12)
+                            .shadow(color: Color.blue.opacity(0.3), radius: 8, y: 4)
+                        }
+                        #if os(macOS)
+                        .buttonStyle(.plain)
+                        #endif
+                        
+                        // Arm/Disarm Toggle Button
+                        Button(action: {
+                            if mavlinkManager.isArmed {
+                                mavlinkManager.disarm()
+                            } else {
+                                mavlinkManager.arm()
+                            }
+                        }) {
+                            HStack(spacing: 8) {
+                                Image(systemName: mavlinkManager.isArmed ? "power.circle.fill" : "power")
+                                    .font(.system(size: 16, weight: .semibold))
+                                Text(mavlinkManager.isArmed ? "DISARM" : "ARM")
+                                    .font(.system(size: 16, weight: .semibold))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 12)
+                            .background(
+                                LinearGradient(
+                                    colors: mavlinkManager.isArmed ? [
+                                        Color(red: 0.8, green: 0.2, blue: 0.2),
+                                        Color(red: 0.9, green: 0.3, blue: 0.3)
+                                    ] : [
+                                        Color(red: 0.2, green: 0.7, blue: 0.3),
+                                        Color(red: 0.3, green: 0.8, blue: 0.4)
+                                    ],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .cornerRadius(12)
+                            .shadow(color: mavlinkManager.isArmed ? Color.red.opacity(0.3) : Color.green.opacity(0.3), radius: 8, y: 4)
+                        }
+                        #if os(macOS)
+                        .buttonStyle(.plain)
+                        #endif
                     }
-                    .padding(.vertical, 30)  // ✅ Üst ve alt padding eklendi
+                    .padding(.vertical, 30)
                     
                     Spacer()
                 }
             }
         }
         .onReceive(updateTimer) { _ in
+            syncGamepadValues()
             sendManualControl()
         }
     }
     
+    // Gamepad değerlerini touch joystick ile senkronize et
+    private func syncGamepadValues() {
+        #if os(macOS)
+        if gamepadManager.isControllerConnected {
+            // Gamepad bağlıysa, gamepad değerlerini kullan
+            leftJoystickPosition = CGPoint(
+                x: CGFloat(gamepadManager.leftStickX),
+                y: CGFloat(gamepadManager.leftStickY)
+            )
+            rightJoystickPosition = CGPoint(
+                x: CGFloat(gamepadManager.rightStickX),
+                y: CGFloat(gamepadManager.rightStickY)
+            )
+        }
+        #endif
+    }
+    
+    // Hesaplanan değerler
+    private var throttleValue: Int {
+        #if os(macOS)
+        if gamepadManager.isControllerConnected {
+            return Int((gamepadManager.leftStickY + 1.0) * 500)
+        }
+        #endif
+        return Int((leftJoystickPosition.y + 1.0) * 500)
+    }
+    
+    private var yawValue: Int {
+        #if os(macOS)
+        if gamepadManager.isControllerConnected {
+            return Int(gamepadManager.leftStickX * 1000)
+        }
+        #endif
+        return Int(leftJoystickPosition.x * 1000)
+    }
+    
+    private var pitchValue: Int {
+        #if os(macOS)
+        if gamepadManager.isControllerConnected {
+            return Int(gamepadManager.rightStickY * 1000)
+        }
+        #endif
+        return Int(rightJoystickPosition.y * 1000)
+    }
+    
+    private var rollValue: Int {
+        #if os(macOS)
+        if gamepadManager.isControllerConnected {
+            return Int(gamepadManager.rightStickX * 1000)
+        }
+        #endif
+        return Int(rightJoystickPosition.x * 1000)
+    }
+    
     private func sendManualControl() {
-        let x = Int16(rightJoystickPosition.y * 1000)
-        let y = Int16(rightJoystickPosition.x * 1000)
-        let z = Int16((leftJoystickPosition.y + 1.0) * 500)
-        let r = Int16(leftJoystickPosition.x * 1000)
+        let x: Int16
+        let y: Int16
+        let z: Int16
+        let r: Int16
+        
+        #if os(macOS)
+        if gamepadManager.isControllerConnected {
+            let values = gamepadManager.getManualControlValues()
+            x = values.x
+            y = values.y
+            z = values.z
+            r = values.r
+        } else {
+            x = Int16(rightJoystickPosition.y * 1000)
+            y = Int16(rightJoystickPosition.x * 1000)
+            z = Int16((leftJoystickPosition.y + 1.0) * 500)
+            r = Int16(leftJoystickPosition.x * 1000)
+        }
+        #else
+        x = Int16(rightJoystickPosition.y * 1000)
+        y = Int16(rightJoystickPosition.x * 1000)
+        z = Int16((leftJoystickPosition.y + 1.0) * 500)
+        r = Int16(leftJoystickPosition.x * 1000)
+        #endif
         
         mavlinkManager.sendManualControl(x: x, y: y, z: z, r: r)
     }
 }
+
+// MARK: - Gamepad Status View (macOS only)
+#if os(macOS)
+struct GamepadStatusView: View {
+    @ObservedObject var gamepadManager = GamepadManager.shared
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 12) {
+                Image(systemName: gamepadManager.isControllerConnected ? "gamecontroller.fill" : "gamecontroller")
+                    .font(.system(size: 20))
+                    .foregroundColor(gamepadManager.isControllerConnected ? .green : .gray)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(gamepadManager.isControllerConnected ? "Gamepad Connected" : "No Gamepad")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                    
+                    Text(gamepadManager.controllerName)
+                        .font(.system(size: 12))
+                        .foregroundColor(.gray)
+                }
+                
+                Spacer()
+            }
+            
+            if gamepadManager.isControllerConnected {
+                // Axis values debug
+                HStack(spacing: 16) {
+                    VStack(spacing: 2) {
+                        Text("L-X")
+                            .font(.system(size: 10))
+                            .foregroundColor(.gray)
+                        Text(String(format: "%.2f", gamepadManager.leftStickX))
+                            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                            .foregroundColor(abs(gamepadManager.leftStickX) > 0.1 ? .orange : .white)
+                    }
+                    VStack(spacing: 2) {
+                        Text("L-Y")
+                            .font(.system(size: 10))
+                            .foregroundColor(.gray)
+                        Text(String(format: "%.2f", gamepadManager.leftStickY))
+                            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                            .foregroundColor(abs(gamepadManager.leftStickY) > 0.1 ? .orange : .white)
+                    }
+                    VStack(spacing: 2) {
+                        Text("R-X")
+                            .font(.system(size: 10))
+                            .foregroundColor(.gray)
+                        Text(String(format: "%.2f", gamepadManager.rightStickX))
+                            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                            .foregroundColor(abs(gamepadManager.rightStickX) > 0.1 ? .orange : .white)
+                    }
+                    VStack(spacing: 2) {
+                        Text("R-Y")
+                            .font(.system(size: 10))
+                            .foregroundColor(.gray)
+                        Text(String(format: "%.2f", gamepadManager.rightStickY))
+                            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                            .foregroundColor(abs(gamepadManager.rightStickY) > 0.1 ? .orange : .white)
+                    }
+                }
+                
+                Text("Check Console for button presses")
+                    .font(.system(size: 10))
+                    .foregroundColor(.gray.opacity(0.6))
+            }
+        }
+        .padding(12)
+        .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+        .cornerRadius(10)
+    }
+}
+#endif
 
 // MARK: - Joystick Control
 struct JoystickControl: View {
@@ -210,8 +415,6 @@ struct JoystickControl: View {
     }
     
     private func updatePosition(_ location: CGPoint) {
-        // Convert touch location to joystick coordinates
-        // Center of joystick is at (size/2, size/2)
         let center = size / 2
         let dx = (location.x - center) / (size * 0.35)
         let dy = -(location.y - center) / (size * 0.35)
@@ -236,13 +439,13 @@ struct ValueDisplay: View {
     var body: some View {
         VStack(spacing: 4) {
             Text(label)
-                .font(.system(size: isCompact ? 15 : 15))
+                .font(.system(size: isCompact ? 12 : 14))
                 .foregroundColor(.gray)
             
             Text("\(value)")
-                .font(.system(size: isCompact ? 20 : 20, weight: .bold, design: .monospaced))
+                .font(.system(size: isCompact ? 18 : 22, weight: .bold, design: .monospaced))
                 .foregroundColor(valueColor)
-                .frame(minWidth: isCompact ? 50 : 75)
+                .frame(minWidth: isCompact ? 50 : 70)
         }
     }
     

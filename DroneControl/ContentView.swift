@@ -2,6 +2,8 @@
 //  ContentView.swift
 //  DroneControl
 //
+//  Cross-platform iOS/macOS - VLC/RTSP removed
+//
 
 import SwiftUI
 
@@ -31,42 +33,33 @@ struct ContentView: View {
                 }
                 .tag(2)
             
-            // Video Stream (RTSP) - NavigationView REMOVED! ✅
-            NavigationView {
-                RTSPPlayerView(mavlinkManager: MAVLinkManager.shared)
-                }
-                .tabItem {
-                    Label("Video", systemImage: "video.fill")
-                }
-                .tag(3)
-            
             // Flight Modes
             FlightModeView()
                 .tabItem {
                     Label("Modes", systemImage: "airplane")
                 }
-                .tag(4)
+                .tag(3)
             
             // Map View
             EnhancedMapView(mavlinkManager: MAVLinkManager.shared)
                 .tabItem {
                     Label("Map", systemImage: "map.fill")
                 }
-                .tag(5)
+                .tag(4)
             
             // Servo Monitor
             ServoMonitorView()
                 .tabItem {
                     Label("Servos", systemImage: "slider.horizontal.3")
                 }
-                .tag(6)
+                .tag(5)
             
             // Settings
             SettingsView()
                 .tabItem {
                     Label("Settings", systemImage: "gearshape")
                 }
-                .tag(7)
+                .tag(6)
         }
         .accentColor(.cyan)
     }
