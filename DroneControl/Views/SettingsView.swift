@@ -19,10 +19,8 @@ struct SettingsView: View {
                     port: $settings.connectionPort
                 )
                 
-                // Gamepad Settings (macOS)
-                #if os(macOS)
+                // Gamepad Settings (both platforms)
                 GamepadSettingsCard()
-                #endif
                 
                 // Telemetry Status
                 TelemetryStatusCard()
@@ -86,8 +84,7 @@ struct ConnectionCard: View {
     }
 }
 
-// MARK: - Gamepad Settings Card (macOS only)
-#if os(macOS)
+// MARK: - Gamepad Settings Card
 struct GamepadSettingsCard: View {
     @StateObject private var settings = SettingsManager.shared
     @StateObject private var gamepadManager = GamepadManager.shared
@@ -233,7 +230,6 @@ struct ButtonMappingRow: View {
         }
     }
 }
-#endif
 
 // MARK: - Telemetry Status Card
 struct TelemetryStatusCard: View {

@@ -268,7 +268,7 @@ class GamepadManager: ObservableObject {
 }
 
 #else
-// iOS
+// iOS - GameController framework
 import GameController
 
 class GamepadManager: ObservableObject {
@@ -284,16 +284,187 @@ class GamepadManager: ObservableObject {
     @Published var controllerName: String = "No Controller"
     
     var deadzone: Float = 0.1
-    var holdThrottle: Bool = false
+    var holdThrottle: Bool = true
+    var throttleSpeed: Float = 0.010
     
-    private init() {}
+    private var controller: GCController?
+    private var pollTimer: Timer?
+    private var cancellables = Set<AnyCancellable>()
+    private var buttonStates: [String: Bool] = [:]
     
-    func getManualControlValues() -> (x: Int16, y: Int16, z: Int16, r: Int16) {
-        return (0, 0, 500, 0)
+    private init() {
+        // SettingsManager'dan ayarları al
+        let settings = SettingsManager.shared
+        self.deadzone = settings.gamepadDeadzone
+        self.holdThrottle = settings.gamepadHoldThrottle
+        self.throttleSpeed = settings.throttleSpeed
+        
+        // Ayar değişikliklerini dinle
+        settings.$gamepadDeadzone
+            .sink { [weak self] value in self?.deadzone = value }
+            .store(in: &cancellables)
+        
+        settings.$gamepadHoldThrottle
+            .sink { [weak self] value in self?.holdThrottle = value }
+            .store(in: &cancellables)
+        
+        settings.$throttleSpeed
+            .sink { [weak self] value in self?.throttleSpeed = value }
+            .store(in: &cancellables)
+        
+        setupControllerNotifications()
+        
+        // Zaten bağlı controller var mı?
+        if let existingController = GCController.controllers().first {
+            connectController(existingController)
+        }
     }
     
-    func resetAll() {}
-    func setThrottle(_ value: Float) {}
-    func refreshControllers() {}
+    private func setupControllerNotifications() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(controllerConnected),
+            name: .GCControllerDidConnect,
+            object: nil
+        )
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(controllerDisconnected),
+            name: .GCControllerDidDisconnect,
+            object: nil
+        )
+        
+        // Wireless controller keşfi
+        GCController.startWirelessControllerDiscovery { }
+    }
+    
+    @objc private func controllerConnected(_ notification: Notification) {
+        guard let controller = notification.object as? GCController else { return }
+        connectController(controller)
+    }
+    
+    @objc private func controllerDisconnected(_ notification: Notification) {
+        pollTimer?.invalidate()
+        pollTimer = nil
+        controller = nil
+        
+        DispatchQueue.main.async {
+            self.isControllerConnected = false
+            self.controllerName = "No Controller"
+            self.resetAll()
+        }
+        
+        print("🎮 Controller disconnected")
+    }
+    
+    private func connectController(_ gc: GCController) {
+        controller = gc
+        
+        DispatchQueue.main.async {
+            self.isControllerConnected = true
+            self.controllerName = gc.vendorName ?? "Controller"
+        }
+        
+        print("🎮 Controller connected: \(gc.vendorName ?? "Unknown")")
+        
+        // Polling başlat
+        pollTimer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { [weak self] _ in
+            self?.pollInputs()
+        }
+    }
+    
+    private func pollInputs() {
+        guard let gamepad = controller?.extendedGamepad else { return }
+        
+        // Left Stick
+        let lx = applyDeadzone(gamepad.leftThumbstick.xAxis.value)
+        let ly = applyDeadzone(gamepad.leftThumbstick.yAxis.value)
+        
+        // Right Stick
+        let rx = applyDeadzone(gamepad.rightThumbstick.xAxis.value)
+        let ry = applyDeadzone(gamepad.rightThumbstick.yAxis.value)
+        
+        DispatchQueue.main.async {
+            // Yaw
+            self.leftStickX = lx
+            
+            // Throttle
+            if self.holdThrottle {
+                let delta = ly * self.throttleSpeed
+                self.leftStickY = max(-1.0, min(1.0, self.leftStickY + delta))
+            } else {
+                self.leftStickY = ly
+            }
+            
+            // Roll & Pitch
+            self.rightStickX = rx
+            self.rightStickY = ry
+        }
+        
+        // Butonlar - sadece ilk basışta tetikle
+        checkButton("menu", isPressed: gamepad.buttonMenu.isPressed) {
+            MAVLinkManager.shared.arm()
+        }
+        
+        checkButton("options", isPressed: gamepad.buttonOptions?.isPressed == true) {
+            MAVLinkManager.shared.disarm()
+        }
+        
+        checkButton("l3", isPressed: gamepad.leftThumbstickButton?.isPressed == true) {
+            self.resetAll()
+        }
+        
+        checkButton("r3", isPressed: gamepad.rightThumbstickButton?.isPressed == true) {
+            self.resetAll()
+        }
+    }
+    
+    private func checkButton(_ name: String, isPressed: Bool, action: () -> Void) {
+        let wasPressed = buttonStates[name] ?? false
+        buttonStates[name] = isPressed
+        
+        // Sadece basıldığında tetikle (önceki false, şimdiki true)
+        if isPressed && !wasPressed {
+            action()
+        }
+    }
+    
+    private func applyDeadzone(_ value: Float) -> Float {
+        if abs(value) < deadzone { return 0 }
+        let sign: Float = value > 0 ? 1 : -1
+        return sign * (abs(value) - deadzone) / (1 - deadzone)
+    }
+    
+    func getManualControlValues() -> (x: Int16, y: Int16, z: Int16, r: Int16) {
+        return (
+            Int16(rightStickY * 1000),   // Pitch
+            Int16(rightStickX * 1000),   // Roll
+            Int16((leftStickY + 1.0) * 500),  // Throttle (0-1000)
+            Int16(leftStickX * 1000)     // Yaw
+        )
+    }
+    
+    func resetAll() {
+        DispatchQueue.main.async {
+            self.leftStickX = 0
+            self.leftStickY = -1
+            self.rightStickX = 0
+            self.rightStickY = 0
+        }
+    }
+    
+    func setThrottle(_ value: Float) {
+        DispatchQueue.main.async {
+            self.leftStickY = max(-1, min(1, value))
+        }
+    }
+    
+    func refreshControllers() {
+        GCController.startWirelessControllerDiscovery { }
+        if let gc = GCController.controllers().first {
+            connectController(gc)
+        }
+    }
 }
 #endif

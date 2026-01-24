@@ -31,11 +31,9 @@ struct JoystickView: View {
                     StatusBar()
                         .padding(.horizontal)
                     
-                    // Gamepad Status (macOS)
-                    #if os(macOS)
+                    // Gamepad Status (both platforms)
                     GamepadStatusView()
                         .padding(.horizontal)
-                    #endif
                     
                     Spacer()
                     
@@ -180,7 +178,6 @@ struct JoystickView: View {
     
     // Gamepad değerlerini touch joystick ile senkronize et
     private func syncGamepadValues() {
-        #if os(macOS)
         if gamepadManager.isControllerConnected {
             // Gamepad bağlıysa, gamepad değerlerini kullan
             leftJoystickPosition = CGPoint(
@@ -192,43 +189,34 @@ struct JoystickView: View {
                 y: CGFloat(gamepadManager.rightStickY)
             )
         }
-        #endif
     }
     
     // Hesaplanan değerler
     private var throttleValue: Int {
-        #if os(macOS)
         if gamepadManager.isControllerConnected {
             return Int((gamepadManager.leftStickY + 1.0) * 500)
         }
-        #endif
         return Int((leftJoystickPosition.y + 1.0) * 500)
     }
     
     private var yawValue: Int {
-        #if os(macOS)
         if gamepadManager.isControllerConnected {
             return Int(gamepadManager.leftStickX * 1000)
         }
-        #endif
         return Int(leftJoystickPosition.x * 1000)
     }
     
     private var pitchValue: Int {
-        #if os(macOS)
         if gamepadManager.isControllerConnected {
             return Int(gamepadManager.rightStickY * 1000)
         }
-        #endif
         return Int(rightJoystickPosition.y * 1000)
     }
     
     private var rollValue: Int {
-        #if os(macOS)
         if gamepadManager.isControllerConnected {
             return Int(gamepadManager.rightStickX * 1000)
         }
-        #endif
         return Int(rightJoystickPosition.x * 1000)
     }
     
@@ -238,7 +226,6 @@ struct JoystickView: View {
         let z: Int16
         let r: Int16
         
-        #if os(macOS)
         if gamepadManager.isControllerConnected {
             let values = gamepadManager.getManualControlValues()
             x = values.x
@@ -251,19 +238,12 @@ struct JoystickView: View {
             z = Int16((leftJoystickPosition.y + 1.0) * 500)
             r = Int16(leftJoystickPosition.x * 1000)
         }
-        #else
-        x = Int16(rightJoystickPosition.y * 1000)
-        y = Int16(rightJoystickPosition.x * 1000)
-        z = Int16((leftJoystickPosition.y + 1.0) * 500)
-        r = Int16(leftJoystickPosition.x * 1000)
-        #endif
         
         mavlinkManager.sendManualControl(x: x, y: y, z: z, r: r)
     }
 }
 
-// MARK: - Gamepad Status View (macOS only)
-#if os(macOS)
+// MARK: - Gamepad Status View
 struct GamepadStatusView: View {
     @ObservedObject var gamepadManager = GamepadManager.shared
     
@@ -288,7 +268,7 @@ struct GamepadStatusView: View {
             }
             
             if gamepadManager.isControllerConnected {
-                // Axis values debug
+                // Axis values
                 HStack(spacing: 16) {
                     VStack(spacing: 2) {
                         Text("L-X")
@@ -323,10 +303,6 @@ struct GamepadStatusView: View {
                             .foregroundColor(abs(gamepadManager.rightStickY) > 0.1 ? .orange : .white)
                     }
                 }
-                
-                Text("Check Console for button presses")
-                    .font(.system(size: 10))
-                    .foregroundColor(.gray.opacity(0.6))
             }
         }
         .padding(12)
@@ -334,7 +310,6 @@ struct GamepadStatusView: View {
         .cornerRadius(10)
     }
 }
-#endif
 
 // MARK: - Joystick Control
 struct JoystickControl: View {
