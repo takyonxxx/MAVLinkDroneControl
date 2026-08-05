@@ -56,7 +56,7 @@
 		9C8154FD2EE74BF1004EEB8A /* EnhancedMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnhancedMapView.swift; sourceTree = "<group>"; };
 		9C8154FE2EE74BF1004EEB8A /* MapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapView.swift; sourceTree = "<group>"; };
 		9C8155072EE74D70004EEB8A /* MapModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapModels.swift; sourceTree = "<group>"; };
-		9CC5ADC92EE39DFA0021F292 /* DroneControl-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "DroneControl-Bridging-Header.h"; sourceTree = "<group>"; };
+		9CC5ADC92EE39DFA0021F292 /* DroneControl-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "DroneControl-Bridging-Header.h"; path = "MAVLink/DroneControl-Bridging-Header.h"; sourceTree = "<group>"; };
 		9CC5ADCA2EE43D050021F292 /* AttitudeIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttitudeIndicator.swift; sourceTree = "<group>"; };
 		9CC5ADCC2EE43D270021F292 /* MainDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainDashboardView.swift; sourceTree = "<group>"; };
 		9CC5ADCE2EE445400021F292 /* StatusBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBar.swift; sourceTree = "<group>"; };
@@ -401,7 +401,7 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "DroneControl/DroneControl-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "DroneControl/MAVLink/DroneControl-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -440,7 +440,7 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "DroneControl/DroneControl-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "DroneControl/MAVLink/DroneControl-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};

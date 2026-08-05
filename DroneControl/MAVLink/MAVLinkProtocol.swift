@@ -19,6 +19,7 @@ protocol MAVLinkMessageHandler: AnyObject {
     func handleVFRHUD(_ message: mavlink_vfr_hud_t)
     func handleScaledPressure(_ message: mavlink_scaled_pressure_t)
     func handleScaledPressure2(_ message: mavlink_scaled_pressure2_t)
+    func handleScaledIMU(_ message: mavlink_scaled_imu_t)
     func handleParamValue(_ message: mavlink_param_value_t)
     func handleCommandAck(_ message: mavlink_command_ack_t)
     func handleStatusText(_ message: mavlink_statustext_t)
@@ -144,6 +145,11 @@ class MAVLinkProtocol {
             var pressure2 = mavlink_scaled_pressure2_t()
             mavlink_msg_scaled_pressure2_decode(&message, &pressure2)
             handler.handleScaledPressure2(pressure2)
+            
+        case Int(MAVLINK_MSG_ID_SCALED_IMU):
+            var scaledImu = mavlink_scaled_imu_t()
+            mavlink_msg_scaled_imu_decode(&message, &scaledImu)
+            handler.handleScaledIMU(scaledImu)
             
         case Int(MAVLINK_MSG_ID_PARAM_VALUE):
             var paramValue = mavlink_param_value_t()

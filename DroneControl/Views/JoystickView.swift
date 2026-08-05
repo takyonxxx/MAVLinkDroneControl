@@ -35,6 +35,14 @@ struct JoystickView: View {
                     GamepadStatusView()
                         .padding(.horizontal)
                     
+                    // Battery info (same as dashboard: Voltage / Current / Charge)
+                    BatteryBar()
+                        .padding(.horizontal)
+                    
+                    // Flight telemetry: Heading / Alt AGL / Speed
+                    FlightTelemetryBar(isCompact: isCompact)
+                        .padding(.horizontal)
+                    
                     Spacer()
                     
                     // Values display
@@ -240,6 +248,61 @@ struct JoystickView: View {
         }
         
         mavlinkManager.sendManualControl(x: x, y: y, z: z, r: r)
+    }
+}
+
+// MARK: - Flight Telemetry Bar (Heading / Alt AGL / Speed)
+struct FlightTelemetryBar: View {
+    @EnvironmentObject var mavlinkManager: MAVLinkManager
+    let isCompact: Bool
+    
+    var body: some View {
+        HStack(spacing: 10) {
+            // Heading
+            BatteryInfoItem(
+                icon: "safari.fill",
+                label: "Heading",
+                value: String(format: "%.0f°", mavlinkManager.heading),
+                color: .cyan
+            )
+            
+            Divider()
+                .frame(height: 28)
+                .background(Color.gray.opacity(0.3))
+            
+            // Altitude AGL (yerden yukseklik) - GPS fix varsa GPS, yoksa barometre
+            BatteryInfoItem(
+                icon: "arrow.up.to.line",
+                label: mavlinkManager.isUsingGPSSource ? "Alt AGL (GPS)" : "Alt AGL (Baro)",
+                value: String(format: "%.1fm", mavlinkManager.displayAltitude),
+                color: .green
+            )
+            
+            Divider()
+                .frame(height: 28)
+                .background(Color.gray.opacity(0.3))
+            
+            // Speed (km/h) - GPS fix varsa GPS, yoksa IMU olu-hesap
+            BatteryInfoItem(
+                icon: "speedometer",
+                label: mavlinkManager.isUsingGPSSource ? "Speed (GPS)" : "Speed (IMU)",
+                value: String(format: "%.1f km/h", mavlinkManager.displaySpeed * 3.6),
+                color: .orange
+            )
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(red: 0.12, green: 0.12, blue: 0.18),
+                    Color(red: 0.1, green: 0.1, blue: 0.15)
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
+        .cornerRadius(10)
     }
 }
 

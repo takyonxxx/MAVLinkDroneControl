@@ -137,6 +137,7 @@ struct DroneState {
     var latitude: Double = 0.0
     var longitude: Double = 0.0
     var altitude: Float = 0.0
+    var relativeAltitude: Float = 0.0
     var batteryVoltage: Float = 0.0
     var batteryCurrent: Float = 0.0
     var batteryRemaining: Int = 0
@@ -164,7 +165,8 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
     
     @Published var latitude: Double = 0.0
     @Published var longitude: Double = 0.0
-    @Published var altitude: Float = 0.0
+    @Published var altitude: Float = 0.0          // MSL (deniz seviyesinden)
+    @Published var relativeAltitude: Float = 0.0  // AGL (yerden / home'a gore)
     @Published var heading: Float = 0.0
     @Published var roll: Float = 0.0
     @Published var pitch: Float = 0.0
@@ -185,6 +187,29 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
     @Published var batteryVoltage: Float = 0.0
     @Published var batteryCurrent: Float = 0.0
     @Published var batteryRemaining: Int = 0
+    
+    // Source-selected telemetry (GPS fix -> GPS; no fix -> baro altitude + IMU speed)
+    @Published var displayAltitude: Float = 0.0   // AGL, m
+    @Published var displaySpeed: Float = 0.0      // m/s
+    @Published var isUsingGPSSource: Bool = false
+    
+    // GPS-derived values (GPS_RAW_INT)
+    private var currentFixType: UInt8 = 0         // sync copy for handler-thread decisions
+    private var gpsAltitudeMSL: Float = 0.0
+    private var gpsAltRef: Float? = nil           // ground reference (MSL) for GPS AGL
+    
+    // Barometric altitude (SCALED_PRESSURE)
+    private var baroAltitude: Float = 0.0         // ISA altitude from press_abs
+    private var baroAltRef: Float? = nil          // ground reference for baro AGL
+    
+    // IMU dead-reckoning velocity (SCALED_IMU, earth-frame horizontal)
+    private var imuVx: Float = 0.0
+    private var imuVy: Float = 0.0
+    private var lastImuTimeMs: UInt32? = nil
+    private var attitudeRollRad: Float = 0.0
+    private var attitudePitchRad: Float = 0.0
+    private var attitudeYawRad: Float = 0.0
+    private var lastArmedState: Bool = false
     
     private let udpConnection: UDPConnection
     private let mavlinkProtocol: MAVLinkProtocol
@@ -242,6 +267,7 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
             (36, 100000),   // SERVO_OUTPUT_RAW at 10Hz - ÖNEMLİ!
             (74, 200000),   // VFR_HUD at 5Hz
             (29, 500000),   // SCALED_PRESSURE at 2Hz
+            (26, 100000),   // SCALED_IMU at 10Hz (IMU dead-reckoning speed)
         ]
         
         for (msgId, intervalUs) in messages {
@@ -503,6 +529,16 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
         let customMode = message.custom_mode
         let type = message.type
         
+        // Arm oldugu anda yer referanslarini yakala (AGL sifir noktasi) ve IMU hizini sifirla
+        if armed && !lastArmedState {
+            gpsAltRef = currentFixType >= 3 ? gpsAltitudeMSL : nil
+            baroAltRef = baroAltitude != 0 ? baroAltitude : nil
+            imuVx = 0.0
+            imuVy = 0.0
+            print("Ground reference captured (arm): gpsRef=\(gpsAltRef.map { String(format: "%.1f", $0) } ?? "nil") baroRef=\(baroAltRef.map { String(format: "%.1f", $0) } ?? "nil")")
+        }
+        lastArmedState = armed
+        
         DispatchQueue.main.async {
             if self.isArmed != armed {
                 print("💓 Armed state changed: \(armed)")
@@ -546,17 +582,20 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
         let lat = Double(message.lat) / 1e7
         let lon = Double(message.lon) / 1e7
         let alt = Float(message.alt) / 1000.0
+        let relAlt = Float(message.relative_alt) / 1000.0
         let hdg = Float(message.hdg) / 100.0
         
         DispatchQueue.main.async {
             self.latitude = lat
             self.longitude = lon
             self.altitude = alt
+            self.relativeAltitude = relAlt
             self.heading = hdg
             
             self.droneState.latitude = lat
             self.droneState.longitude = lon
             self.droneState.altitude = alt
+            self.droneState.relativeAltitude = relAlt
             self.droneState.heading = hdg
         }
         
@@ -572,12 +611,57 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
         let fixChanged = fixType != self.gpsFixType
         let satCountChanged = abs(Int(satellites) - Int(self.gpsSatellites)) > 2
         
+        currentFixType = fixType
+        
+        var gpsSpeed: Float? = nil
+        var gpsAgl: Float? = nil
+        
+        if fixType >= 3 {
+            // GPS hizi (cm/s, UINT16_MAX = gecersiz)
+            if message.vel != UInt16.max {
+                gpsSpeed = Float(message.vel) / 100.0
+            }
+            
+            // GPS MSL yuksekligi (mm) ve yer referansina gore AGL
+            gpsAltitudeMSL = Float(message.alt) / 1000.0
+            if gpsAltRef == nil {
+                gpsAltRef = gpsAltitudeMSL   // ilk 3D fix'te yer referansi
+            }
+            if let ref = gpsAltRef {
+                gpsAgl = gpsAltitudeMSL - ref
+            }
+            
+            // IMU olu-hesap hizini GPS ile senkronla: fix kaybolursa son bilinen hizdan devam eder
+            if let speed = gpsSpeed {
+                if message.cog != UInt16.max {
+                    let cogRad = Float(message.cog) / 100.0 * .pi / 180.0
+                    imuVx = speed * cos(cogRad)
+                    imuVy = speed * sin(cogRad)
+                } else {
+                    let mag = sqrt(imuVx * imuVx + imuVy * imuVy)
+                    if mag > 0.01 {
+                        imuVx = imuVx / mag * speed
+                        imuVy = imuVy / mag * speed
+                    }
+                }
+            }
+        } else {
+            // Fix kaybedildi: bir sonraki fix'te yer referansi yeniden alinmasin,
+            // mevcut referans korunur (ayni ucusta tutarlilik)
+        }
+        
         DispatchQueue.main.async {
             self.gpsFixType = fixType
             self.gpsSatellites = satellites
             
             self.droneState.gpsFixType = Int(fixType)
             self.droneState.gpsSatellites = Int(satellites)
+            
+            self.isUsingGPSSource = fixType >= 3
+            if fixType >= 3 {
+                if let speed = gpsSpeed { self.displaySpeed = speed }
+                if let agl = gpsAgl { self.displayAltitude = agl }
+            }
         }
         
         // Only log when we have GPS fix (not "No GPS" spam)
@@ -589,6 +673,11 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
     }
     
     func handleAttitude(_ message: mavlink_attitude_t) {
+        // IMU olu-hesap icin radyan degerleri sakla (govde -> yer donusumu)
+        attitudeRollRad = message.roll
+        attitudePitchRad = message.pitch
+        attitudeYawRad = message.yaw
+        
         let roll = message.roll * (180.0 / Float.pi)
         let pitch = message.pitch * (180.0 / Float.pi)
         let yaw = message.yaw * (180.0 / Float.pi)
@@ -669,14 +758,84 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
         let press = message.press_abs
         let temp = Float(message.temperature) / 100.0
         
+        // Barometrik yukseklik (ISA): h = 44330 * (1 - (P/P0)^0.190295)
+        if press > 0 {
+            baroAltitude = 44330.0 * (1.0 - pow(press / 1013.25, 0.190295))
+            if baroAltRef == nil {
+                baroAltRef = baroAltitude   // ilk ornekte yer referansi
+            }
+        }
+        
+        let noFix = currentFixType < 3
+        let baroAgl: Float? = baroAltRef.map { baroAltitude - $0 }
+        
         DispatchQueue.main.async {
             self.pressure = press
             self.temperature = temp
+            
+            // GPS fix yokken yukseklik barometreden
+            if noFix, let agl = baroAgl {
+                self.isUsingGPSSource = false
+                self.displayAltitude = agl
+            }
         }
     }
     
     func handleScaledPressure2(_ message: mavlink_scaled_pressure2_t) {
         // Optional: handle second pressure sensor
+    }
+    
+    func handleScaledIMU(_ message: mavlink_scaled_imu_t) {
+        // GPS fix yokken hiz: govde ivmesini yer eksenine cevirip yatay bilesenleri integre et.
+        // Not: olu-hesap (dead-reckoning) zamanla kayar; GPS geldiginde handleGPSRawInt senkronlar.
+        defer { lastImuTimeMs = message.time_boot_ms }
+        
+        guard let lastMs = lastImuTimeMs, message.time_boot_ms > lastMs else { return }
+        let dt = Float(message.time_boot_ms - lastMs) / 1000.0
+        guard dt > 0, dt < 0.5 else { return }   // kopuk/duraklamis akista integre etme
+        
+        // mG -> m/s^2 (govde cercevesi, ozgul kuvvet)
+        let g: Float = 9.80665
+        let ax = Float(message.xacc) * g / 1000.0
+        let ay = Float(message.yacc) * g / 1000.0
+        let az = Float(message.zacc) * g / 1000.0
+        
+        // Govde -> yer (NED) donusumu, sadece yatay satirlar (Rz(psi)*Ry(theta)*Rx(phi)).
+        // Yercekiminin yatay bileseni yoktur; yatay ozgul kuvvet = yatay lineer ivme.
+        let cr = cos(attitudeRollRad),  sr = sin(attitudeRollRad)
+        let cp = cos(attitudePitchRad), sp = sin(attitudePitchRad)
+        let cy = cos(attitudeYawRad),   sy = sin(attitudeYawRad)
+        
+        let aN = cy * cp * ax + (cy * sp * sr - sy * cr) * ay + (cy * sp * cr + sy * sr) * az
+        let aE = sy * cp * ax + (sy * sp * sr + cy * cr) * ay + (sy * sp * cr - cy * sr) * az
+        
+        // Duragan tespiti (ZUPT): toplam ivme ~1g ve yatay ivme kucukse hizi hizla sondur
+        let totalMag = sqrt(ax * ax + ay * ay + az * az)
+        let horizMag = sqrt(aN * aN + aE * aE)
+        let isStationary = abs(totalMag - g) < 0.3 && horizMag < 0.25
+        
+        if isStationary {
+            imuVx *= 0.80
+            imuVy *= 0.80
+            if abs(imuVx) < 0.05 { imuVx = 0 }
+            if abs(imuVy) < 0.05 { imuVy = 0 }
+        } else {
+            imuVx += aN * dt
+            imuVy += aE * dt
+            // Sizinti (leaky) integrasyon: bias kaynakli sinirsiz kaymayi engelle
+            let leak = Float(1.0 - 0.02 * Double(dt) / 0.1)
+            imuVx *= leak
+            imuVy *= leak
+        }
+        
+        // GPS fix yokken hiz IMU'dan
+        if currentFixType < 3 {
+            let speed = sqrt(imuVx * imuVx + imuVy * imuVy)
+            DispatchQueue.main.async {
+                self.isUsingGPSSource = false
+                self.displaySpeed = speed
+            }
+        }
     }
     
     func handleParamValue(_ message: mavlink_param_value_t) {

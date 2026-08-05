@@ -51,7 +51,7 @@ class SettingsManager: ObservableObject {
         self.connectionPort = UserDefaults.standard.string(forKey: "connectionPort") ?? "14550"
         self.gamepadDeadzone = savedDeadzone > 0 ? savedDeadzone : 0.1
         self.gamepadHoldThrottle = savedHoldThrottle ?? true
-        self.throttleSpeed = savedThrottleSpeed > 0 ? savedThrottleSpeed : 0.03
+        self.throttleSpeed = savedThrottleSpeed > 0 ? savedThrottleSpeed : 0.010
     }
     
     func resetToDefaults() {
@@ -59,7 +59,7 @@ class SettingsManager: ObservableObject {
         connectionPort = "14550"
         gamepadDeadzone = 0.1
         gamepadHoldThrottle = true
-        throttleSpeed = 0.03
+        throttleSpeed = 0.010
     }
     
     func clearAllSettings() {

@@ -9,8 +9,17 @@ import SwiftUI
 struct DroneControlApp: App {
     @StateObject private var mavlinkManager = MAVLinkManager.shared
     
+    #if os(macOS)
+    @StateObject private var gamepadManager = GamepadManager.shared
+    #endif
+    
     init() {
         configureAppearance()
+        
+        #if os(macOS)
+        // GamepadManager'ı erken başlat
+        _ = GamepadManager.shared
+        #endif
     }
     
     var body: some Scene {
