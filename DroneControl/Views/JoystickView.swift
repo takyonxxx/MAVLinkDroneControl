@@ -79,7 +79,8 @@ struct JoystickView: View {
                             JoystickControl(
                                 position: $leftJoystickPosition,
                                 size: joystickSize,
-                                returnToCenter: false
+                                returnToCenterX: true,   // yaw birakinca ortalanir
+                                returnToCenterY: false   // throttle son degerde kalir
                             )
                             Text("Throttle / Yaw")
                                 .font(.system(size: isCompact ? 13 : 14, weight: .medium))
@@ -91,7 +92,8 @@ struct JoystickView: View {
                             JoystickControl(
                                 position: $rightJoystickPosition,
                                 size: joystickSize,
-                                returnToCenter: true
+                                returnToCenterX: true,
+                                returnToCenterY: true
                             )
                             Text("Pitch / Roll")
                                 .font(.system(size: isCompact ? 13 : 14, weight: .medium))
@@ -378,7 +380,8 @@ struct GamepadStatusView: View {
 struct JoystickControl: View {
     @Binding var position: CGPoint
     let size: CGFloat
-    let returnToCenter: Bool
+    let returnToCenterX: Bool   // birakinca X ekseni ortalansin mi
+    let returnToCenterY: Bool   // birakinca Y ekseni ortalansin mi
     
     @State private var isDragging = false
     
@@ -443,9 +446,12 @@ struct JoystickControl: View {
                 }
                 .onEnded { _ in
                     isDragging = false
-                    if returnToCenter {
+                    if returnToCenterX || returnToCenterY {
                         withAnimation(.spring(response: 0.3)) {
-                            position = .zero
+                            position = CGPoint(
+                                x: returnToCenterX ? 0 : position.x,
+                                y: returnToCenterY ? 0 : position.y
+                            )
                         }
                     }
                 }
