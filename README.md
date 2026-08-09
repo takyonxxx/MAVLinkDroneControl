@@ -65,7 +65,7 @@ A native iOS application for controlling ArduPilot-based drones (Copter, Plane, 
 
 Correct propeller direction is critical for stable flight. The diagram below shows the motor layout and rotation directions (CW/CCW) for a standard quadcopter configuration:
 
-<img src="https://raw.githubusercontent.com/takyonxxx/MAVLinkDroneControl/main/images/propollers_orientation.jpeg" width="400">
+<img src="https://raw.githubusercontent.com/takyonxxx/MAVLinkDroneControl/main/images/propollers_orientation.jpg" width="400">
 
 *Motor positions and propeller rotation directions (M1–M4)*
 
