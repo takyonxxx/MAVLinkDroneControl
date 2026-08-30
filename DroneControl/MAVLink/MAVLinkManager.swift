@@ -6,6 +6,27 @@
 import Foundation
 import Combine
 
+// MARK: - VehicleMessage (STATUSTEXT kaydi)
+struct VehicleMessage: Identifiable, Equatable {
+    let id = UUID()
+    let date: Date
+    let severity: UInt8      // MAV_SEVERITY: 0=Emergency ... 7=Debug
+    let text: String
+    
+    var severityName: String {
+        switch severity {
+        case 0: return "EMERGENCY"
+        case 1: return "ALERT"
+        case 2: return "CRITICAL"
+        case 3: return "ERROR"
+        case 4: return "WARNING"
+        case 5: return "NOTICE"
+        case 6: return "INFO"
+        default: return "DEBUG"
+        }
+    }
+}
+
 // MARK: - CopterFlightMode
 enum CopterFlightMode: UInt32 {
     case stabilize = 0
@@ -174,6 +195,7 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
     
     @Published var gpsFixType: UInt8 = 0
     @Published var gpsSatellites: UInt8 = 0
+    @Published var gpsHdop: Float = 99.99          // GPS_RAW_INT.eph / 100 (99.99 = gecersiz)
     
     @Published var groundSpeed: Float = 0.0
     @Published var climbRate: Float = 0.0
@@ -183,6 +205,16 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
     @Published var servoValues: [Int: UInt16] = [:]
     
     @Published var parameters: [String: Float] = [:]
+    @Published var paramTotalCount: Int = 0        // FC'nin bildirdigi toplam parametre sayisi
+    @Published var paramDownloading: Bool = false
+    
+    // Vehicle messages (STATUSTEXT) + EKF status
+    @Published var statusMessages: [VehicleMessage] = []
+    @Published var ekfFlags: UInt16 = 0
+    @Published var ekfVelocityVariance: Float = 0
+    @Published var ekfPosHorizVariance: Float = 0
+    @Published var ekfCompassVariance: Float = 0
+    @Published var ekfReportReceived: Bool = false
     
     @Published var batteryVoltage: Float = 0.0
     @Published var batteryCurrent: Float = 0.0
@@ -268,6 +300,7 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
             (74, 200000),   // VFR_HUD at 5Hz
             (29, 500000),   // SCALED_PRESSURE at 2Hz
             (26, 100000),   // SCALED_IMU at 10Hz (IMU dead-reckoning speed)
+            (193, 500000),  // EKF_STATUS_REPORT at 2Hz (Messages sekmesi icin)
         ]
         
         for (msgId, intervalUs) in messages {
@@ -484,6 +517,9 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
     
     func requestAllParameters() {
         print("📋 Requesting all parameters...")
+        DispatchQueue.main.async {
+            self.paramDownloading = true
+        }
         var msg = mavlink_message_t()
         var paramRequest = mavlink_param_request_list_t()
         
@@ -491,6 +527,30 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
         paramRequest.target_component = targetComponentID
         
         mavlink_msg_param_request_list_encode(systemID, componentID, &msg, &paramRequest)
+        sendMessage(msg)
+    }
+    
+    func requestParameter(name: String) {
+        guard name.count <= 16 else { return }
+        
+        var msg = mavlink_message_t()
+        var paramRead = mavlink_param_request_read_t()
+        
+        paramRead.target_system = targetSystemID
+        paramRead.target_component = targetComponentID
+        paramRead.param_index = -1          // -1: isimle sorgula
+        
+        var paramID: (Int8, Int8, Int8, Int8, Int8, Int8, Int8, Int8, Int8, Int8, Int8, Int8, Int8, Int8, Int8, Int8) =
+            (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        let bytes = Array(name.utf8.prefix(16))
+        withUnsafeMutableBytes(of: &paramID) { buffer in
+            for (index, byte) in bytes.enumerated() {
+                buffer[index] = byte
+            }
+        }
+        paramRead.param_id = paramID
+        
+        mavlink_msg_param_request_read_encode(systemID, componentID, &msg, &paramRead)
         sendMessage(msg)
     }
     
@@ -650,9 +710,13 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
             // mevcut referans korunur (ayni ucusta tutarlilik)
         }
         
+        // HDOP (eph = HDOP*100, UINT16_MAX = gecersiz)
+        let hdop: Float = message.eph != UInt16.max ? Float(message.eph) / 100.0 : 99.99
+        
         DispatchQueue.main.async {
             self.gpsFixType = fixType
             self.gpsSatellites = satellites
+            self.gpsHdop = hdop
             
             self.droneState.gpsFixType = Int(fixType)
             self.droneState.gpsSatellites = Int(satellites)
@@ -855,7 +919,13 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
         let count = Int(message.param_count)
         
         DispatchQueue.main.async { [weak self] in
-            self?.parameters[paramName] = value
+            guard let self = self else { return }
+            self.parameters[paramName] = value
+            if count > 0 { self.paramTotalCount = count }
+            // Son parametre geldiginde veya tum liste dolunca indirmeyi bitti say
+            if index >= count - 1 || (count > 0 && self.parameters.count >= count) {
+                self.paramDownloading = false
+            }
         }
         
         if index < count {
@@ -895,6 +965,26 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
         let severityString = MAVLinkProtocol.severityToString(severity)
         
         print("📢 [\(severityString)] \(text)")
+        
+        let entry = VehicleMessage(date: Date(), severity: severity, text: text)
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.statusMessages.append(entry)
+            if self.statusMessages.count > 300 {
+                self.statusMessages.removeFirst(self.statusMessages.count - 300)
+            }
+        }
+    }
+    
+    func handleEkfStatusReport(_ message: mavlink_ekf_status_report_t) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.ekfFlags = message.flags
+            self.ekfVelocityVariance = message.velocity_variance
+            self.ekfPosHorizVariance = message.pos_horiz_variance
+            self.ekfCompassVariance = message.compass_variance
+            self.ekfReportReceived = true
+        }
     }
     
     func handleMissionCount(_ message: mavlink_mission_count_t) {

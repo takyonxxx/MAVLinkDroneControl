@@ -19,47 +19,54 @@ struct ContentView: View {
                 }
                 .tag(0)
             
-            // Control Panel
-            ControlPanelView()
+            // Control (joystick + arm)
+            JoystickView()
                 .tabItem {
                     Label("Control", systemImage: "gamecontroller")
                 }
                 .tag(1)
-            
-            // Joystick
-            JoystickView()
-                .tabItem {
-                    Label("Joystick", systemImage: "move.3d")
-                }
-                .tag(2)
             
             // Flight Modes
             FlightModeView()
                 .tabItem {
                     Label("Modes", systemImage: "airplane")
                 }
-                .tag(3)
+                .tag(2)
             
             // Map View
             EnhancedMapView(mavlinkManager: MAVLinkManager.shared)
                 .tabItem {
                     Label("Map", systemImage: "map.fill")
                 }
-                .tag(4)
+                .tag(3)
             
             // Servo Monitor
             ServoMonitorView()
                 .tabItem {
                     Label("Servos", systemImage: "slider.horizontal.3")
                 }
+                .tag(4)
+            
+            // Parameters
+            ParametersView()
+                .tabItem {
+                    Label("Params", systemImage: "list.bullet.rectangle")
+                }
                 .tag(5)
+            
+            // Messages (STATUSTEXT + EKF health)
+            MessagesView()
+                .tabItem {
+                    Label("Messages", systemImage: "text.bubble")
+                }
+                .tag(6)
             
             // Settings
             SettingsView()
                 .tabItem {
                     Label("Settings", systemImage: "gearshape")
                 }
-                .tag(6)
+                .tag(7)
         }
         .accentColor(.cyan)
     }

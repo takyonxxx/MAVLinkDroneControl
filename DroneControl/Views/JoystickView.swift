@@ -43,6 +43,10 @@ struct JoystickView: View {
                     FlightTelemetryBar(isCompact: isCompact)
                         .padding(.horizontal)
                     
+                    // GPS info: Fix / Satellites / HDOP
+                    GPSInfoBar(isCompact: isCompact)
+                        .padding(.horizontal)
+                    
                     Spacer()
                     
                     // Values display
@@ -140,9 +144,9 @@ struct JoystickView: View {
                         // Arm/Disarm Toggle Button
                         Button(action: {
                             if mavlinkManager.isArmed {
-                                mavlinkManager.disarm()
+                                mavlinkManager.disarmVehicle(force: false)
                             } else {
-                                mavlinkManager.arm()
+                                mavlinkManager.armVehicle(force: false)
                             }
                         }) {
                             HStack(spacing: 8) {
@@ -250,6 +254,84 @@ struct JoystickView: View {
         }
         
         mavlinkManager.sendManualControl(x: x, y: y, z: z, r: r)
+    }
+}
+
+// MARK: - GPS Info Bar (Fix / Satellites / HDOP)
+struct GPSInfoBar: View {
+    @EnvironmentObject var mavlinkManager: MAVLinkManager
+    let isCompact: Bool
+    
+    private var fixName: String {
+        let names = ["No GPS", "No Fix", "2D Fix", "3D Fix", "DGPS", "RTK Float", "RTK Fixed"]
+        let t = Int(mavlinkManager.gpsFixType)
+        return t < names.count ? names[t] : "Unknown"
+    }
+    
+    private var fixColor: Color {
+        if mavlinkManager.gpsFixType >= 3 { return .green }
+        if mavlinkManager.gpsSatellites > 0 { return .yellow }
+        return .red
+    }
+    
+    private var hdopColor: Color {
+        let h = mavlinkManager.gpsHdop
+        if h < 1.5 { return .green }
+        if h < 3.0 { return .yellow }
+        return .red
+    }
+    
+    private var hdopText: String {
+        mavlinkManager.gpsHdop >= 99 ? "--" : String(format: "%.2f", mavlinkManager.gpsHdop)
+    }
+    
+    var body: some View {
+        HStack(spacing: 10) {
+            // Fix type
+            BatteryInfoItem(
+                icon: mavlinkManager.gpsFixType >= 3 ? "location.fill" : "location.slash",
+                label: "GPS Fix",
+                value: fixName,
+                color: fixColor
+            )
+            
+            Divider()
+                .frame(height: 28)
+                .background(Color.gray.opacity(0.3))
+            
+            // Satellite count
+            BatteryInfoItem(
+                icon: "antenna.radiowaves.left.and.right",
+                label: "Satellites",
+                value: "\(mavlinkManager.gpsSatellites)",
+                color: fixColor
+            )
+            
+            Divider()
+                .frame(height: 28)
+                .background(Color.gray.opacity(0.3))
+            
+            // HDOP
+            BatteryInfoItem(
+                icon: "scope",
+                label: "HDOP",
+                value: hdopText,
+                color: hdopColor
+            )
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(red: 0.12, green: 0.12, blue: 0.18),
+                    Color(red: 0.1, green: 0.1, blue: 0.15)
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
+        .cornerRadius(10)
     }
 }
 

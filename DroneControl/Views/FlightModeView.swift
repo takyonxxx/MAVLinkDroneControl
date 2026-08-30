@@ -22,7 +22,7 @@ struct FlightModeView: View {
     
     var body: some View {
         ScrollView {
-            VStack(spacing: 20) {
+            VStack(spacing: 16) {
                 // Current mode card
                 CurrentModeCard()
                 
@@ -41,11 +41,15 @@ struct FlightModeView: View {
                 }
                 
                 // Mode grid
-                LazyVGrid(columns: columns, spacing: 12) {
+                LazyVGrid(columns: columns, spacing: 10) {
                     ForEach(availableModes, id: \.self) { mode in
                         FlightModeButton(mode: mode)
                     }
                 }
+                
+                // ARMING_CHECK toggle (device-synced)
+                ArmingCheckToggleButton()
+                    .padding(.bottom, 24)
             }
             .padding()
             .frame(maxWidth: .infinity)
@@ -116,7 +120,7 @@ struct FlightModeButton: View {
         Button(action: {
             mavlinkManager.setFlightMode(mode)
         }) {
-            VStack(spacing: 8) {
+            VStack(spacing: 6) {
                 Image(systemName: mode.icon)
                     .font(.title2)
                     .foregroundColor(isSelected ? mode.color : .gray)
@@ -133,7 +137,7 @@ struct FlightModeButton: View {
                     .lineLimit(2)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
+            .padding(.vertical, 12)
             .padding(.horizontal, 8)
             .background(isSelected ? mode.color.opacity(0.2) : Color.black.opacity(0.3))
             .cornerRadius(12)
@@ -208,6 +212,117 @@ struct CompactModeButton: View {
             )
         }
         .disabled(!mavlinkManager.isConnected)
+    }
+}
+
+// MARK: - ARMING_CHECK Toggle Button
+// Cihazdaki ARMING_CHECK degerini gosterir ve basinca toggle eder.
+// Gosterilen deger her zaman cihazin geri yayinladigi (echo) degerdir;
+// yazma sonrasi buton ancak FC yeni degeri onaylayinca degisir.
+struct ArmingCheckToggleButton: View {
+    @EnvironmentObject var mavlinkManager: MAVLinkManager
+    
+    private let paramName = "ARMING_CHECK"
+    @State private var writePending = false
+    private let refreshTimer = Timer.publish(every: 3.0, on: .main, in: .common).autoconnect()
+    
+    private var deviceValue: Float? {
+        mavlinkManager.parameters[paramName]
+    }
+    
+    private var isEnabled: Bool? {
+        guard let v = deviceValue else { return nil }
+        return v != 0
+    }
+    
+    private var title: String {
+        switch isEnabled {
+        case .some(true):
+            let v = deviceValue ?? 1
+            let detail = v == 1 ? "" : String(format: " (mask: %.0f)", v)
+            return "Arming Checks: ENABLED" + detail
+        case .some(false):
+            return "Arming Checks: DISABLED"
+        case .none:
+            return mavlinkManager.isConnected ? "Arming Checks: reading..." : "Arming Checks: not connected"
+        }
+    }
+    
+    private var subtitle: String {
+        switch isEnabled {
+        case .some(true): return "Tap to disable all pre-arm checks"
+        case .some(false): return "Unsafe! Tap to re-enable pre-arm checks"
+        case .none: return "Waiting for device value"
+        }
+    }
+    
+    private var colors: [Color] {
+        switch isEnabled {
+        case .some(true):
+            return [Color(red: 0.2, green: 0.7, blue: 0.3), Color(red: 0.3, green: 0.8, blue: 0.4)]
+        case .some(false):
+            return [Color(red: 0.8, green: 0.2, blue: 0.2), Color(red: 0.9, green: 0.3, blue: 0.3)]
+        case .none:
+            return [Color.gray.opacity(0.5), Color.gray.opacity(0.4)]
+        }
+    }
+    
+    var body: some View {
+        Button(action: toggle) {
+            HStack(spacing: 10) {
+                Image(systemName: isEnabled == false ? "shield.slash.fill" : "shield.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 15, weight: .bold))
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .opacity(0.85)
+                }
+                
+                Spacer()
+                
+                if writePending {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                        .tint(.white)
+                } else {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 14))
+                        .opacity(0.8)
+                }
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity)
+            .background(
+                LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing)
+            )
+            .cornerRadius(12)
+        }
+        .buttonStyle(.plain)
+        .disabled(isEnabled == nil)
+        .onAppear {
+            mavlinkManager.requestParameter(name: paramName)
+        }
+        .onReceive(refreshTimer) { _ in
+            // Cihazla senkron kal: MP gibi baska bir GCS degistirse de goruruz
+            if mavlinkManager.isConnected {
+                mavlinkManager.requestParameter(name: paramName)
+            }
+        }
+        .onChange(of: deviceValue) { _ in
+            writePending = false     // FC yeni degeri yayinladi, yazma onaylandi
+        }
+    }
+    
+    private func toggle() {
+        guard let enabled = isEnabled else { return }
+        writePending = true
+        mavlinkManager.setParameter(name: paramName, value: enabled ? 0 : 1)
+        // Echo gelmezse birkac saniye icinde tekrar sorgula (timer zaten yapiyor)
     }
 }
 
