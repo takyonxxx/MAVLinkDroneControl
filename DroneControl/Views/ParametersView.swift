@@ -76,6 +76,7 @@ struct ParametersView: View {
     @State private var editingParam: String? = nil
     @State private var editValue: String = ""
     @State private var recentlyWritten: Set<String> = []
+    @State private var showRestoreConfirm = false
     
     // Kategori adi -> [(isim, deger)] sirali
     private var grouped: [(category: String, params: [(String, Float)])] {
@@ -142,32 +143,80 @@ struct ParametersView: View {
     
     // MARK: Ust bar: oku butonu + ilerleme
     private var headerBar: some View {
-        HStack(spacing: 12) {
-            Button(action: { mavlinkManager.requestAllParameters() }) {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.down.circle.fill")
-                    Text("Read from Vehicle")
-                        .font(.system(size: 13, weight: .semibold))
+        VStack(spacing: 8) {
+            HStack(spacing: 12) {
+                Button(action: { mavlinkManager.requestAllParameters() }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.down.circle.fill")
+                            .font(.system(size: 13))
+                        Text("Read from Vehicle")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .padding(.horizontal, 14)
+                    .frame(height: 34)
+                    .background(mavlinkManager.isConnected ? Color.cyan : Color.gray)
+                    .foregroundColor(.black)
+                    .cornerRadius(8)
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(mavlinkManager.isConnected ? Color.cyan : Color.gray)
-                .foregroundColor(.black)
-                .cornerRadius(8)
+                .disabled(!mavlinkManager.isConnected || mavlinkManager.restoreInProgress)
+                .buttonStyle(.plain)
+                
+                Button(action: { showRestoreConfirm = true }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.counterclockwise.circle.fill")
+                            .font(.system(size: 13))
+                        Text("Restore Defaults")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .padding(.horizontal, 14)
+                    .frame(height: 34)
+                    .background(mavlinkManager.isConnected ? Color.orange : Color.gray)
+                    .foregroundColor(.black)
+                    .cornerRadius(8)
+                }
+                .disabled(!mavlinkManager.isConnected || mavlinkManager.restoreInProgress)
+                .buttonStyle(.plain)
+                
+                if mavlinkManager.paramDownloading {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                }
+                
+                Spacer()
+                
+                Text(progressText)
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundColor(.gray)
             }
-            .disabled(!mavlinkManager.isConnected)
-            .buttonStyle(.plain)
             
-            if mavlinkManager.paramDownloading {
-                ProgressView()
-                    .scaleEffect(0.8)
+            if mavlinkManager.restoreInProgress {
+                HStack(spacing: 10) {
+                    ProgressView(value: Double(mavlinkManager.restoreProgress),
+                                 total: Double(max(mavlinkManager.restoreTotal, 1)))
+                        .tint(.orange)
+                    Text("\(mavlinkManager.restoreProgress)/\(mavlinkManager.restoreTotal)")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.orange)
+                    Button(action: { mavlinkManager.cancelRestore() }) {
+                        Text("Cancel")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.red)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
-            
-            Spacer()
-            
-            Text(progressText)
-                .font(.system(size: 12, design: .monospaced))
-                .foregroundColor(.gray)
+        }
+        .confirmationDialog(
+            "Restore default parameters?",
+            isPresented: $showRestoreConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Write \(DefaultParameters.values.count) parameters", role: .destructive) {
+                mavlinkManager.restoreDefaultParameters()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Writes the known-good snapshot to the vehicle, overwriting current values. Takes about \(DefaultParameters.values.count / 40 + 5) seconds. Reboot the vehicle afterwards.")
         }
     }
     

@@ -16,6 +16,7 @@
 		7973F9C6882B1A25F70FA7F7 /* JoystickView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 071BB79654658DFAC1B3D53B /* JoystickView.swift */; };
 		PAR0000000000000000000A2 /* ParametersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = PAR0000000000000000000A1 /* ParametersView.swift */; };
 		MSG0000000000000000000B2 /* MessagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = MSG0000000000000000000B1 /* MessagesView.swift */; };
+		DEF0000000000000000000C2 /* DefaultParameters.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEF0000000000000000000C1 /* DefaultParameters.swift */; };
 		8B294186C87E5F26FB685F35 /* ServoMonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB937ACECF12A96C94E682A1 /* ServoMonitorView.swift */; };
 		9C8154FF2EE74BF1004EEB8A /* MapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C8154FE2EE74BF1004EEB8A /* MapView.swift */; };
 		9C8155002EE74BF1004EEB8A /* EnhancedMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C8154FD2EE74BF1004EEB8A /* EnhancedMapView.swift */; };
@@ -47,6 +48,7 @@
 		071BB79654658DFAC1B3D53B /* JoystickView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoystickView.swift; sourceTree = "<group>"; };
 		PAR0000000000000000000A1 /* ParametersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParametersView.swift; sourceTree = "<group>"; };
 		MSG0000000000000000000B1 /* MessagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesView.swift; sourceTree = "<group>"; };
+		DEF0000000000000000000C1 /* DefaultParameters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultParameters.swift; sourceTree = "<group>"; };
 		10323E0AE18C737D179DE0C4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2311F05382E3E35ABA13412D /* DroneControlApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DroneControlApp.swift; sourceTree = "<group>"; };
 		38B4BAB5B509BAF9C5F59A66 /* ConnectionStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStatusView.swift; sourceTree = "<group>"; };
@@ -134,6 +136,7 @@
 				GPAD0001000000000011 /* GamepadManager.swift */,
 				9C8155062EE74D42004EEB8A /* Models */,
 				2311F05382E3E35ABA13412D /* DroneControlApp.swift */,
+				DEF0000000000000000000C1 /* DefaultParameters.swift */,
 				8EB8D06DA1A4E034E72D7921 /* ContentView.swift */,
 				06CF6D7B039E5E189692C7D9 /* MAVLink */,
 				0CF2AE824241938CAC178AF8 /* Views */,
@@ -233,6 +236,7 @@
 				7973F9C6882B1A25F70FA7F7 /* JoystickView.swift in Sources */,
 				PAR0000000000000000000A2 /* ParametersView.swift in Sources */,
 				MSG0000000000000000000B2 /* MessagesView.swift in Sources */,
+				DEF0000000000000000000C2 /* DefaultParameters.swift in Sources */,
 				9CE33AEF2EEB2F400056073C /* SettingsManager.swift in Sources */,
 				GPAD0001000000000001 /* GamepadManager.swift in Sources */,
 				9CC5ADCF2EE445400021F292 /* StatusBar.swift in Sources */,

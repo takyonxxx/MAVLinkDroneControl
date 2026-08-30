@@ -530,6 +530,38 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
         sendMessage(msg)
     }
     
+    // MARK: - Restore defaults (rate-limited bulk write)
+    @Published var restoreInProgress: Bool = false
+    @Published var restoreProgress: Int = 0          // yazilan adet
+    @Published var restoreTotal: Int = 0
+    private var restoreCancelled = false
+    
+    func restoreDefaultParameters() {
+        guard !restoreInProgress else { return }
+        let items = DefaultParameters.values
+        restoreCancelled = false
+        DispatchQueue.main.async {
+            self.restoreInProgress = true
+            self.restoreProgress = 0
+            self.restoreTotal = items.count
+        }
+        // ESP koprusunu bogmamak icin 25 ms arayla (~40 msg/s) gonder
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            for (i, item) in items.enumerated() {
+                if self.restoreCancelled { break }
+                self.setParameter(name: item.0, value: item.1)
+                DispatchQueue.main.async { self.restoreProgress = i + 1 }
+                Thread.sleep(forTimeInterval: 0.025)
+            }
+            DispatchQueue.main.async { self.restoreInProgress = false }
+        }
+    }
+    
+    func cancelRestore() {
+        restoreCancelled = true
+    }
+    
     func requestParameter(name: String) {
         guard name.count <= 16 else { return }
         
