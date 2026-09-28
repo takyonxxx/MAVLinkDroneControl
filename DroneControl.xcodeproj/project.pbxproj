@@ -17,6 +17,7 @@
 		8B294186C87E5F26FB685F35 /* ServoMonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB937ACECF12A96C94E682A1 /* ServoMonitorView.swift */; };
 		A1B2C3D4E5F60718293A4B5C /* MotorTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D8E9F0A1B2C3D4E5F60718 /* MotorTestView.swift */; };
 		D4E5F60718293A4B5C6D7E8F /* GPSView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9F0A1B2C3D4E5F607182930 /* GPSView.swift */; };
+		F0A1B2C3D4E5F60718293A4B /* CalibrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1B2C3D4E5F60718293A4B5 /* CalibrationView.swift */; };
 		9C8154FF2EE74BF1004EEB8A /* MapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C8154FE2EE74BF1004EEB8A /* MapView.swift */; };
 		9C8155002EE74BF1004EEB8A /* EnhancedMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C8154FD2EE74BF1004EEB8A /* EnhancedMapView.swift */; };
 		9C8155082EE74D70004EEB8A /* MapModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C8155072EE74D70004EEB8A /* MapModels.swift */; };
@@ -68,6 +69,7 @@
 		BB937ACECF12A96C94E682A1 /* ServoMonitorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServoMonitorView.swift; sourceTree = "<group>"; };
 		C7D8E9F0A1B2C3D4E5F60718 /* MotorTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotorTestView.swift; sourceTree = "<group>"; };
 		E9F0A1B2C3D4E5F607182930 /* GPSView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPSView.swift; sourceTree = "<group>"; };
+		0A1B2C3D4E5F60718293A4B5 /* CalibrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalibrationView.swift; sourceTree = "<group>"; };
 		C047821F89B40AAA79C1E6CC /* MAVLinkProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MAVLinkProtocol.swift; sourceTree = "<group>"; };
 		CA39A6C158533A30C36017F4 /* DroneControl.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DroneControl.entitlements; sourceTree = "<group>"; };
 		DEF0000000000000000000C1 /* DefaultParameters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultParameters.swift; sourceTree = "<group>"; };
@@ -110,6 +112,7 @@
 				BB937ACECF12A96C94E682A1 /* ServoMonitorView.swift */,
 				C7D8E9F0A1B2C3D4E5F60718 /* MotorTestView.swift */,
 				E9F0A1B2C3D4E5F607182930 /* GPSView.swift */,
+				0A1B2C3D4E5F60718293A4B5 /* CalibrationView.swift */,
 				724A8B5E83C38B664385DAD3 /* FlightModeView.swift */,
 				38B4BAB5B509BAF9C5F59A66 /* ConnectionStatusView.swift */,
 				58CC8ABCC49EBB75E19499DB /* SettingsView.swift */,
@@ -251,6 +254,7 @@
 				8B294186C87E5F26FB685F35 /* ServoMonitorView.swift in Sources */,
 				A1B2C3D4E5F60718293A4B5C /* MotorTestView.swift in Sources */,
 				D4E5F60718293A4B5C6D7E8F /* GPSView.swift in Sources */,
+				F0A1B2C3D4E5F60718293A4B /* CalibrationView.swift in Sources */,
 				743E2CC906AE3AAD2CB92A43 /* FlightModeView.swift in Sources */,
 				9CC5ADCD2EE43D270021F292 /* MainDashboardView.swift in Sources */,
 				F870771B72104EB36B5FD4B8 /* ConnectionStatusView.swift in Sources */,

@@ -67,6 +67,77 @@ struct GPSRawData {
     }
 }
 
+// MARK: - Kalibrasyon veri yapilari
+struct MagCalProgressData: Equatable {
+    let compassId: UInt8
+    let calMask: UInt8
+    let status: UInt8            // MAG_CAL_STATUS
+    let attempt: UInt8
+    let completionPct: UInt8
+    let completionMask: [UInt8]  // 10 byte = 80 geodesic bolum biti
+    let directionX: Float
+    let directionY: Float
+    let directionZ: Float
+    let received: Date
+    
+    var statusName: String { MagCalStatusName.name(status) }
+    /// completion_mask icinde set edilmis bolum sayisi (0-80)
+    var sectionsDone: Int { completionMask.reduce(0) { $0 + $1.nonzeroBitCount } }
+}
+
+struct MagCalReportData: Equatable {
+    let compassId: UInt8
+    let calMask: UInt8
+    let status: UInt8
+    let autosaved: Bool
+    let fitness: Float           // RMS mgauss residual - dusuk = iyi
+    let ofsX: Float, ofsY: Float, ofsZ: Float
+    let diagX: Float, diagY: Float, diagZ: Float
+    let offdiagX: Float, offdiagY: Float, offdiagZ: Float
+    let orientationConfidence: Float
+    let oldOrientation: UInt8
+    let newOrientation: UInt8
+    let scaleFactor: Float
+    let received: Date
+    
+    var statusName: String { MagCalStatusName.name(status) }
+    var success: Bool { status == 4 }   // MAG_CAL_SUCCESS
+    /// Mission Planner ile ayni esik mantigi: fitness kucuk = iyi
+    var qualityText: String {
+        switch fitness {
+        case ..<5:  return "Excellent"
+        case ..<10: return "Good"
+        case ..<20: return "Acceptable"
+        case ..<40: return "Poor"
+        default:    return "Bad"
+        }
+    }
+}
+
+enum MagCalStatusName {
+    static func name(_ s: UInt8) -> String {
+        switch s {
+        case 0: return "NOT STARTED"
+        case 1: return "WAITING TO START"
+        case 2: return "RUNNING (step 1)"
+        case 3: return "RUNNING (step 2)"
+        case 4: return "SUCCESS"
+        case 5: return "FAILED"
+        case 6: return "BAD ORIENTATION"
+        case 7: return "BAD RADIUS"
+        default: return "UNKNOWN (\(s))"
+        }
+    }
+}
+
+/// Gyro / baro gibi tek adimlik kalibrasyonlarin durumu
+enum SimpleCalState: Equatable {
+    case idle
+    case inProgress(Date)
+    case success(String)
+    case failed(String)
+}
+
 // MARK: - CopterFlightMode
 enum CopterFlightMode: UInt32 {
     case stabilize = 0
@@ -577,6 +648,20 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
     /// Pilot tarafindan yapilmis gercek arm (motor testi sirasindaki ic arm haric)
     var isArmedByPilot: Bool { isArmed && !motorTestActive }
     
+    // MARK: - Kalibrasyon durumu
+    @Published var magCalProgress: [UInt8: MagCalProgressData] = [:]   // compass_id -> ilerleme
+    @Published var magCalReports: [UInt8: MagCalReportData] = [:]      // compass_id -> sonuc
+    @Published var magCalRunning: Bool = false
+    @Published var magCalStartAck: String? = nil       // DO_START_MAG_CAL ACK
+    @Published var magCalAcceptAck: String? = nil      // DO_ACCEPT_MAG_CAL ACK (= parametrelere yazildi)
+    @Published var magCalSaved: Bool = false
+    private var magCalAcceptSent: Bool = false
+    private var magCalAutoAccept: Bool = true
+    
+    @Published var gyroCalState: SimpleCalState = .idle
+    @Published var baroCalState: SimpleCalState = .idle
+    private var pendingPreflightCal: String? = nil     // "gyro" | "baro" - ACK eslestirmesi icin
+    
     /// ArduCopter motor testi. motorSeq = ArduPilot test sirasi (A=1, B=2, C=3, D=4;
     /// on sagdan baslayip saat yonunde), MOTOR_x cikis numarasi DEGIL.
     /// Quad X: M1 on sag -> seq 1, M4 arka sag -> seq 2, M2 arka sol -> seq 3, M3 on sol -> seq 4.
@@ -616,6 +701,141 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
         let work = DispatchWorkItem { [weak self] in self?.motorTestActive = false }
         motorTestClearWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0, execute: work)
+    }
+    
+    // MARK: - Kalibrasyon komutlari
+    
+    /// Pusula kalibrasyonu baslat (tum pusulalar). autoSave=false: SUCCESS sonrasi
+    /// MAG_CAL_REPORT gelir, fitness gosterilir ve DO_ACCEPT_MAG_CAL ile yazilir.
+    func startCompassCalibration(retryOnFailure: Bool = true, autoSave: Bool = false, autoAccept: Bool = true) {
+        print("[CAL] Starting compass calibration (retry=\(retryOnFailure) autosave=\(autoSave))")
+        DispatchQueue.main.async {
+            self.magCalProgress = [:]
+            self.magCalReports = [:]
+            self.magCalRunning = true
+            self.magCalStartAck = nil
+            self.magCalAcceptAck = nil
+            self.magCalSaved = false
+        }
+        magCalAcceptSent = false
+        magCalAutoAccept = autoAccept
+        sendCommandLong(MAV_CMD_DO_START_MAG_CAL,
+                        p1: 0,                          // bitmask 0 = tum pusulalar
+                        p2: retryOnFailure ? 1 : 0,     // hata durumunda tekrar dene
+                        p3: autoSave ? 1 : 0,           // 0 = ACCEPT bekle
+                        p4: 0,                          // gecikme (s)
+                        p5: 0)                          // autoreboot
+    }
+    
+    func cancelCompassCalibration() {
+        print("[CAL] Cancel compass calibration")
+        sendCommandLong(MAV_CMD_DO_CANCEL_MAG_CAL, p1: 0)
+        DispatchQueue.main.async { self.magCalRunning = false }
+    }
+    
+    /// Kalibrasyon sonucunu kabul et -> COMPASS_OFS_x vb. parametrelere yazilir
+    func acceptCompassCalibration() {
+        print("[CAL] Accept compass calibration (write to params)")
+        magCalAcceptSent = true
+        sendCommandLong(MAV_CMD_DO_ACCEPT_MAG_CAL, p1: 0)
+    }
+    
+    /// Gyro kalibrasyonu (arac sabit durmali). ArduPilot ACK'i kalibrasyon bitince doner.
+    func calibrateGyro() {
+        print("[CAL] Gyro calibration")
+        pendingPreflightCal = "gyro"
+        DispatchQueue.main.async { self.gyroCalState = .inProgress(Date()) }
+        sendCommandLong(MAV_CMD_PREFLIGHT_CALIBRATION, p1: 1)
+        startPreflightCalTimeout(for: "gyro")
+    }
+    
+    /// Barometre yer basinci kalibrasyonu (param3 = 1)
+    func calibrateBarometer() {
+        print("[CAL] Barometer ground pressure calibration")
+        pendingPreflightCal = "baro"
+        DispatchQueue.main.async { self.baroCalState = .inProgress(Date()) }
+        sendCommandLong(MAV_CMD_PREFLIGHT_CALIBRATION, p3: 1)
+        startPreflightCalTimeout(for: "baro")
+    }
+    
+    /// Ucus kontrolcusunu yeniden baslat (pusula kalibrasyonu sonrasi onerilir)
+    func rebootFlightController() {
+        print("[CAL] Reboot flight controller")
+        sendCommandLong(MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN, p1: 1)
+    }
+    
+    private func startPreflightCalTimeout(for which: String) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 15.0) { [weak self] in
+            guard let self = self else { return }
+            if which == "gyro", case .inProgress = self.gyroCalState {
+                self.gyroCalState = .failed("No ACK within 15 s")
+            }
+            if which == "baro", case .inProgress = self.baroCalState {
+                self.baroCalState = .failed("No ACK within 15 s")
+            }
+        }
+    }
+    
+    private func sendCommandLong(_ command: MAV_CMD, p1: Float = 0, p2: Float = 0, p3: Float = 0,
+                                 p4: Float = 0, p5: Float = 0, p6: Float = 0, p7: Float = 0) {
+        var msg = mavlink_message_t()
+        var cmd = mavlink_command_long_t()
+        cmd.target_system = targetSystemID
+        cmd.target_component = targetComponentID
+        cmd.command = UInt16(command.rawValue)
+        cmd.confirmation = 0
+        cmd.param1 = p1; cmd.param2 = p2; cmd.param3 = p3; cmd.param4 = p4
+        cmd.param5 = p5; cmd.param6 = p6; cmd.param7 = p7
+        mavlink_msg_command_long_encode(systemID, componentID, &msg, &cmd)
+        sendMessage(msg)
+    }
+    
+    // MARK: - Kalibrasyon mesajlari
+    
+    func handleMagCalProgress(_ m: mavlink_mag_cal_progress_t) {
+        var mask = m.completion_mask
+        let maskBytes: [UInt8] = withUnsafeBytes(of: &mask) { Array($0.prefix(10)) }
+        let data = MagCalProgressData(
+            compassId: m.compass_id, calMask: m.cal_mask, status: m.cal_status,
+            attempt: m.attempt, completionPct: m.completion_pct, completionMask: maskBytes,
+            directionX: m.direction_x, directionY: m.direction_y, directionZ: m.direction_z,
+            received: Date())
+        DispatchQueue.main.async {
+            self.magCalProgress[m.compass_id] = data
+            self.magCalRunning = true
+        }
+    }
+    
+    func handleMagCalReport(_ m: mavlink_mag_cal_report_t) {
+        let data = MagCalReportData(
+            compassId: m.compass_id, calMask: m.cal_mask, status: m.cal_status,
+            autosaved: m.autosaved != 0, fitness: m.fitness,
+            ofsX: m.ofs_x, ofsY: m.ofs_y, ofsZ: m.ofs_z,
+            diagX: m.diag_x, diagY: m.diag_y, diagZ: m.diag_z,
+            offdiagX: m.offdiag_x, offdiagY: m.offdiag_y, offdiagZ: m.offdiag_z,
+            orientationConfidence: m.orientation_confidence,
+            oldOrientation: m.old_orientation, newOrientation: m.new_orientation,
+            scaleFactor: m.scale_factor, received: Date())
+        print("[CAL] MAG_CAL_REPORT compass=\(m.compass_id) status=\(data.statusName) fitness=\(m.fitness) autosaved=\(m.autosaved)")
+        
+        DispatchQueue.main.async {
+            self.magCalReports[m.compass_id] = data
+            
+            // Kalibre edilen tum pusulalar icin rapor geldi mi?
+            let expected = self.magCalProgress.keys
+            let allReported = expected.isEmpty || expected.allSatisfy { self.magCalReports[$0] != nil }
+            let allSuccess = self.magCalReports.values.allSatisfy { $0.success }
+            
+            if allReported {
+                self.magCalRunning = false
+                if data.autosaved {
+                    self.magCalSaved = true
+                } else if allSuccess && self.magCalAutoAccept && !self.magCalAcceptSent {
+                    // Puan goruldu, degerleri cihaza yaz
+                    self.acceptCompassCalibration()
+                }
+            }
+        }
     }
     
     func requestAllParameters() {
@@ -1114,6 +1334,36 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
         
         let resultStr = MAVLinkProtocol.resultToString(result)
         print("✅ Command \(command) ACK: \(resultStr)")
+        
+        if command == UInt16(MAV_CMD_DO_START_MAG_CAL.rawValue) {
+            let accepted = result == UInt8(MAV_RESULT_ACCEPTED.rawValue)
+            DispatchQueue.main.async {
+                self.magCalStartAck = resultStr
+                if !accepted { self.magCalRunning = false }
+            }
+        }
+        
+        if command == UInt16(MAV_CMD_DO_ACCEPT_MAG_CAL.rawValue) {
+            let accepted = result == UInt8(MAV_RESULT_ACCEPTED.rawValue)
+            DispatchQueue.main.async {
+                self.magCalAcceptAck = resultStr
+                self.magCalSaved = accepted
+            }
+        }
+        
+        if command == UInt16(MAV_CMD_PREFLIGHT_CALIBRATION.rawValue) {
+            let accepted = result == UInt8(MAV_RESULT_ACCEPTED.rawValue)
+            let inProgress = result == UInt8(MAV_RESULT_IN_PROGRESS.rawValue)
+            let which = pendingPreflightCal
+            if !inProgress { pendingPreflightCal = nil }
+            DispatchQueue.main.async {
+                let state: SimpleCalState = inProgress
+                    ? .inProgress(Date())
+                    : (accepted ? .success("ACK: " + resultStr) : .failed("ACK: " + resultStr))
+                if which == "gyro" { self.gyroCalState = state }
+                if which == "baro" { self.baroCalState = state }
+            }
+        }
         
         if command == UInt16(MAV_CMD_DO_MOTOR_TEST.rawValue) {
             let accepted = result == UInt8(MAV_RESULT_ACCEPTED.rawValue)

@@ -72,6 +72,13 @@ struct ContentView: View {
                 }
                 .tag(7)
             
+            // Sensor calibration (compass / gyro / baro)
+            CalibrationView()
+                .tabItem {
+                    Label("Calibrate", systemImage: "scope")
+                }
+                .tag(10)
+            
             // Settings
             SettingsView()
                 .tabItem {

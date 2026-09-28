@@ -22,6 +22,8 @@ protocol MAVLinkMessageHandler: AnyObject {
     func handleScaledIMU(_ message: mavlink_scaled_imu_t)
     func handleParamValue(_ message: mavlink_param_value_t)
     func handleEkfStatusReport(_ message: mavlink_ekf_status_report_t)
+    func handleMagCalProgress(_ message: mavlink_mag_cal_progress_t)
+    func handleMagCalReport(_ message: mavlink_mag_cal_report_t)
     func handleCommandAck(_ message: mavlink_command_ack_t)
     func handleStatusText(_ message: mavlink_statustext_t)
     func handleMissionCount(_ message: mavlink_mission_count_t)
@@ -161,6 +163,16 @@ class MAVLinkProtocol {
             var ekfStatus = mavlink_ekf_status_report_t()
             mavlink_msg_ekf_status_report_decode(&message, &ekfStatus)
             handler.handleEkfStatusReport(ekfStatus)
+            
+        case Int(MAVLINK_MSG_ID_MAG_CAL_PROGRESS):
+            var magProg = mavlink_mag_cal_progress_t()
+            mavlink_msg_mag_cal_progress_decode(&message, &magProg)
+            handler.handleMagCalProgress(magProg)
+            
+        case Int(MAVLINK_MSG_ID_MAG_CAL_REPORT):
+            var magRep = mavlink_mag_cal_report_t()
+            mavlink_msg_mag_cal_report_decode(&message, &magRep)
+            handler.handleMagCalReport(magRep)
             
         case Int(MAVLINK_MSG_ID_COMMAND_ACK):
             var commandAck = mavlink_command_ack_t()
