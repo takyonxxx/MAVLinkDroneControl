@@ -27,6 +27,46 @@ struct VehicleMessage: Identifiable, Equatable {
     }
 }
 
+// MARK: - GPSRawData (GPS_RAW_INT ham verisi + alis istatistigi)
+struct GPSRawData {
+    var received: Bool = false
+    var messageCount: Int = 0
+    var lastReceived: Date? = nil
+    var rateHz: Float = 0            // olculen mesaj frekansi
+    
+    var timeUsec: UInt64 = 0         // GPS zamani (us, epoch) - 0 = yok
+    var fixType: UInt8 = 0
+    var lat: Int32 = 0               // degE7
+    var lon: Int32 = 0               // degE7
+    var alt: Int32 = 0               // mm MSL
+    var eph: UInt16 = UInt16.max     // HDOP*100
+    var epv: UInt16 = UInt16.max     // VDOP*100
+    var vel: UInt16 = UInt16.max     // cm/s
+    var cog: UInt16 = UInt16.max     // cdeg
+    var satellitesVisible: UInt8 = 255
+    var altEllipsoid: Int32 = 0      // mm
+    var hAcc: UInt32 = 0             // mm
+    var vAcc: UInt32 = 0             // mm
+    var velAcc: UInt32 = 0           // mm/s
+    var hdgAcc: UInt32 = 0           // degE5
+    var yaw: UInt16 = 0              // cdeg, 0 = yok
+    
+    var fixName: String {
+        switch fixType {
+        case 0: return "NO GPS"
+        case 1: return "NO FIX"
+        case 2: return "2D FIX"
+        case 3: return "3D FIX"
+        case 4: return "DGPS"
+        case 5: return "RTK FLOAT"
+        case 6: return "RTK FIXED"
+        case 7: return "STATIC"
+        case 8: return "PPP"
+        default: return "UNKNOWN (\(fixType))"
+        }
+    }
+}
+
 // MARK: - CopterFlightMode
 enum CopterFlightMode: UInt32 {
     case stabilize = 0
@@ -196,6 +236,14 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
     @Published var gpsFixType: UInt8 = 0
     @Published var gpsSatellites: UInt8 = 0
     @Published var gpsHdop: Float = 99.99          // GPS_RAW_INT.eph / 100 (99.99 = gecersiz)
+    @Published var gpsRaw = GPSRawData()           // GPS sekmesi icin ham GPS_RAW_INT
+    private var gpsRawTimestamps: [Date] = []      // frekans olcumu icin son mesaj zamanlari
+    
+    // SYS_STATUS sensor bitleri (MAV_SYS_STATUS_SENSOR_*) - GPS fiziksel olarak var mi?
+    @Published var sensorsPresent: UInt32 = 0
+    @Published var sensorsEnabled: UInt32 = 0
+    @Published var sensorsHealth: UInt32 = 0
+    @Published var sysStatusReceived: Bool = false
     
     @Published var groundSpeed: Float = 0.0
     @Published var climbRate: Float = 0.0
@@ -515,6 +563,61 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
         sendMessage(msg)
     }
     
+    // MARK: - Motor Test (MAV_CMD_DO_MOTOR_TEST)
+    
+    /// Son motor test komutunun ACK sonucu (UI icin)
+    @Published var motorTestAckText: String = ""
+    @Published var motorTestAckAccepted: Bool? = nil
+    /// Motor testi bizim tarafimizdan baslatildi mi. ArduCopter motor testi sirasinda
+    /// motorlari kendi icinde ARM eder ve HEARTBEAT'te SAFETY_ARMED bayragini kaldirir;
+    /// bu "gercek" bir arm degildir, UI bunu ayirt etmek icin bu bayragi kullanir.
+    @Published var motorTestActive: Bool = false
+    private var motorTestClearWork: DispatchWorkItem? = nil
+    
+    /// Pilot tarafindan yapilmis gercek arm (motor testi sirasindaki ic arm haric)
+    var isArmedByPilot: Bool { isArmed && !motorTestActive }
+    
+    /// ArduCopter motor testi. motorSeq = ArduPilot test sirasi (A=1, B=2, C=3, D=4;
+    /// on sagdan baslayip saat yonunde), MOTOR_x cikis numarasi DEGIL.
+    /// Quad X: M1 on sag -> seq 1, M4 arka sag -> seq 2, M2 arka sol -> seq 3, M3 on sol -> seq 4.
+    /// Throttle tipi PWM (MOTOR_TEST_THROTTLE_PWM), timeout saniye. timeout 0 = hemen durdur.
+    func motorTest(motorSeq: UInt8, pwm: UInt16, timeoutSec: Float) {
+        print("[MOTOR TEST] seq=\(motorSeq) pwm=\(pwm) timeout=\(timeoutSec)s")
+        var msg = mavlink_message_t()
+        var cmd = mavlink_command_long_t()
+        
+        cmd.target_system = targetSystemID
+        cmd.target_component = targetComponentID
+        cmd.command = UInt16(MAV_CMD_DO_MOTOR_TEST.rawValue)
+        cmd.confirmation = 0
+        cmd.param1 = Float(motorSeq)                                   // motor instance (test sirasi)
+        cmd.param2 = Float(MOTOR_TEST_THROTTLE_PWM.rawValue)          // throttle type = PWM
+        cmd.param3 = Float(pwm)                                        // PWM (1000-2000)
+        cmd.param4 = timeoutSec                                        // timeout (s)
+        cmd.param5 = 0                                                 // motor count (0/1 = tek motor)
+        cmd.param6 = Float(MOTOR_TEST_ORDER_DEFAULT.rawValue)         // ArduCopter param6'yi yok sayar
+        cmd.param7 = 0
+        
+        mavlink_msg_command_long_encode(systemID, componentID, &msg, &cmd)
+        sendMessage(msg)
+        
+        if timeoutSec > 0 {
+            motorTestClearWork?.cancel()
+            motorTestClearWork = nil
+            DispatchQueue.main.async { self.motorTestActive = true }
+        }
+    }
+    
+    /// Calisan motor testini durdurur (min PWM, timeout 0).
+    /// FC birkac heartbeat daha "armed" raporlayabilir; bayrak 2 s sonra temizlenir.
+    func stopMotorTest(motorSeq: UInt8 = 1) {
+        motorTest(motorSeq: motorSeq, pwm: 1000, timeoutSec: 0)
+        motorTestClearWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.motorTestActive = false }
+        motorTestClearWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0, execute: work)
+    }
+    
     func requestAllParameters() {
         print("📋 Requesting all parameters...")
         DispatchQueue.main.async {
@@ -655,7 +758,16 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
         let voltageChanged = abs(voltage - self.batteryVoltage) > 0.5
         let remainingChanged = abs(remaining - self.batteryRemaining) > 10
         
+        let present = message.onboard_control_sensors_present
+        let enabled = message.onboard_control_sensors_enabled
+        let health = message.onboard_control_sensors_health
+        
         DispatchQueue.main.async {
+            self.sensorsPresent = present
+            self.sensorsEnabled = enabled
+            self.sensorsHealth = health
+            self.sysStatusReceived = true
+            
             self.batteryVoltage = voltage
             self.batteryCurrent = current
             self.batteryRemaining = remaining
@@ -745,7 +857,38 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
         // HDOP (eph = HDOP*100, UINT16_MAX = gecersiz)
         let hdop: Float = message.eph != UInt16.max ? Float(message.eph) / 100.0 : 99.99
         
+        // Ham veri + alis frekansi (son 2 s penceresi)
+        let now = Date()
+        gpsRawTimestamps.append(now)
+        gpsRawTimestamps.removeAll { now.timeIntervalSince($0) > 2.0 }
+        let rate: Float = gpsRawTimestamps.count > 1
+            ? Float(gpsRawTimestamps.count - 1) / Float(now.timeIntervalSince(gpsRawTimestamps.first!))
+            : 0
+        
+        var raw = GPSRawData()
+        raw.received = true
+        raw.messageCount = gpsRaw.messageCount + 1
+        raw.lastReceived = now
+        raw.rateHz = rate
+        raw.timeUsec = message.time_usec
+        raw.fixType = fixType
+        raw.lat = message.lat
+        raw.lon = message.lon
+        raw.alt = message.alt
+        raw.eph = message.eph
+        raw.epv = message.epv
+        raw.vel = message.vel
+        raw.cog = message.cog
+        raw.satellitesVisible = satellites
+        raw.altEllipsoid = message.alt_ellipsoid
+        raw.hAcc = message.h_acc
+        raw.vAcc = message.v_acc
+        raw.velAcc = message.vel_acc
+        raw.hdgAcc = message.hdg_acc
+        raw.yaw = message.yaw
+        
         DispatchQueue.main.async {
+            self.gpsRaw = raw
             self.gpsFixType = fixType
             self.gpsSatellites = satellites
             self.gpsHdop = hdop
@@ -971,6 +1114,14 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
         
         let resultStr = MAVLinkProtocol.resultToString(result)
         print("✅ Command \(command) ACK: \(resultStr)")
+        
+        if command == UInt16(MAV_CMD_DO_MOTOR_TEST.rawValue) {
+            let accepted = result == UInt8(MAV_RESULT_ACCEPTED.rawValue)
+            DispatchQueue.main.async {
+                self.motorTestAckAccepted = accepted
+                self.motorTestAckText = resultStr
+            }
+        }
         
         if command == UInt16(MAV_CMD_COMPONENT_ARM_DISARM.rawValue) {
             if result == UInt8(MAV_RESULT_ACCEPTED.rawValue) {

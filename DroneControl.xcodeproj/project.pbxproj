@@ -14,10 +14,9 @@
 		70016879C23BB2A138583A96 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EB8D06DA1A4E034E72D7921 /* ContentView.swift */; };
 		743E2CC906AE3AAD2CB92A43 /* FlightModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 724A8B5E83C38B664385DAD3 /* FlightModeView.swift */; };
 		7973F9C6882B1A25F70FA7F7 /* JoystickView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 071BB79654658DFAC1B3D53B /* JoystickView.swift */; };
-		PAR0000000000000000000A2 /* ParametersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = PAR0000000000000000000A1 /* ParametersView.swift */; };
-		MSG0000000000000000000B2 /* MessagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = MSG0000000000000000000B1 /* MessagesView.swift */; };
-		DEF0000000000000000000C2 /* DefaultParameters.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEF0000000000000000000C1 /* DefaultParameters.swift */; };
 		8B294186C87E5F26FB685F35 /* ServoMonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB937ACECF12A96C94E682A1 /* ServoMonitorView.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* MotorTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D8E9F0A1B2C3D4E5F60718 /* MotorTestView.swift */; };
+		D4E5F60718293A4B5C6D7E8F /* GPSView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9F0A1B2C3D4E5F607182930 /* GPSView.swift */; };
 		9C8154FF2EE74BF1004EEB8A /* MapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C8154FE2EE74BF1004EEB8A /* MapView.swift */; };
 		9C8155002EE74BF1004EEB8A /* EnhancedMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C8154FD2EE74BF1004EEB8A /* EnhancedMapView.swift */; };
 		9C8155082EE74D70004EEB8A /* MapModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C8155072EE74D70004EEB8A /* MapModels.swift */; };
@@ -27,8 +26,11 @@
 		9CE33AEF2EEB2F400056073C /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CE33AEE2EEB2F400056073C /* SettingsManager.swift */; };
 		A6C03FAB3640D8EB35C69E8B /* DroneControlApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2311F05382E3E35ABA13412D /* DroneControlApp.swift */; };
 		BB1F01B3F288919D0206F4B2 /* UDPConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45D3CD6A9DE34134CD2CF226 /* UDPConnection.swift */; };
+		DEF0000000000000000000C2 /* DefaultParameters.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEF0000000000000000000C1 /* DefaultParameters.swift */; };
 		F870771B72104EB36B5FD4B8 /* ConnectionStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B4BAB5B509BAF9C5F59A66 /* ConnectionStatusView.swift */; };
 		GPAD0001000000000001 /* GamepadManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = GPAD0001000000000011 /* GamepadManager.swift */; };
+		MSG0000000000000000000B2 /* MessagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = MSG0000000000000000000B1 /* MessagesView.swift */; };
+		PAR0000000000000000000A2 /* ParametersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = PAR0000000000000000000A1 /* ParametersView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -46,9 +48,6 @@
 
 /* Begin PBXFileReference section */
 		071BB79654658DFAC1B3D53B /* JoystickView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoystickView.swift; sourceTree = "<group>"; };
-		PAR0000000000000000000A1 /* ParametersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParametersView.swift; sourceTree = "<group>"; };
-		MSG0000000000000000000B1 /* MessagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesView.swift; sourceTree = "<group>"; };
-		DEF0000000000000000000C1 /* DefaultParameters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultParameters.swift; sourceTree = "<group>"; };
 		10323E0AE18C737D179DE0C4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2311F05382E3E35ABA13412D /* DroneControlApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DroneControlApp.swift; sourceTree = "<group>"; };
 		38B4BAB5B509BAF9C5F59A66 /* ConnectionStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStatusView.swift; sourceTree = "<group>"; };
@@ -67,10 +66,15 @@
 		9CE33AEE2EEB2F400056073C /* SettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManager.swift; sourceTree = "<group>"; };
 		BA0619F09DCF953B0DE76FD2 /* MAVLinkManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MAVLinkManager.swift; sourceTree = "<group>"; };
 		BB937ACECF12A96C94E682A1 /* ServoMonitorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServoMonitorView.swift; sourceTree = "<group>"; };
+		C7D8E9F0A1B2C3D4E5F60718 /* MotorTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotorTestView.swift; sourceTree = "<group>"; };
+		E9F0A1B2C3D4E5F607182930 /* GPSView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPSView.swift; sourceTree = "<group>"; };
 		C047821F89B40AAA79C1E6CC /* MAVLinkProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MAVLinkProtocol.swift; sourceTree = "<group>"; };
 		CA39A6C158533A30C36017F4 /* DroneControl.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DroneControl.entitlements; sourceTree = "<group>"; };
+		DEF0000000000000000000C1 /* DefaultParameters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultParameters.swift; sourceTree = "<group>"; };
 		ECF3F6EDA3A4710E2C472690 /* DroneControl.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DroneControl.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		GPAD0001000000000011 /* GamepadManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamepadManager.swift; sourceTree = "<group>"; };
+		MSG0000000000000000000B1 /* MessagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesView.swift; sourceTree = "<group>"; };
+		PAR0000000000000000000A1 /* ParametersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParametersView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -104,6 +108,8 @@
 				PAR0000000000000000000A1 /* ParametersView.swift */,
 				MSG0000000000000000000B1 /* MessagesView.swift */,
 				BB937ACECF12A96C94E682A1 /* ServoMonitorView.swift */,
+				C7D8E9F0A1B2C3D4E5F60718 /* MotorTestView.swift */,
+				E9F0A1B2C3D4E5F607182930 /* GPSView.swift */,
 				724A8B5E83C38B664385DAD3 /* FlightModeView.swift */,
 				38B4BAB5B509BAF9C5F59A66 /* ConnectionStatusView.swift */,
 				58CC8ABCC49EBB75E19499DB /* SettingsView.swift */,
@@ -243,6 +249,8 @@
 				9C8154FF2EE74BF1004EEB8A /* MapView.swift in Sources */,
 				9C8155002EE74BF1004EEB8A /* EnhancedMapView.swift in Sources */,
 				8B294186C87E5F26FB685F35 /* ServoMonitorView.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5C /* MotorTestView.swift in Sources */,
+				D4E5F60718293A4B5C6D7E8F /* GPSView.swift in Sources */,
 				743E2CC906AE3AAD2CB92A43 /* FlightModeView.swift in Sources */,
 				9CC5ADCD2EE43D270021F292 /* MainDashboardView.swift in Sources */,
 				F870771B72104EB36B5FD4B8 /* ConnectionStatusView.swift in Sources */,
@@ -384,6 +392,7 @@
 				CODE_SIGN_ENTITLEMENTS = DroneControl/DroneControl.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = X26P47BR28;
 				ENABLE_APP_SANDBOX = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/DroneControl/MAVLink/mavlink/include/mavlink/v2.0/**";
@@ -423,6 +432,7 @@
 				CODE_SIGN_ENTITLEMENTS = DroneControl/DroneControl.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = X26P47BR28;
 				ENABLE_APP_SANDBOX = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/DroneControl/MAVLink/mavlink/include/mavlink/v2.0/**";

@@ -12,6 +12,8 @@ struct ContentView: View {
     
     var body: some View {
         TabView(selection: $selectedTab) {
+            // --- Ana sekmeler (iOS'ta ilk 4 tab bar'da gorunur) ---
+            
             // Dashboard
             MainDashboardView()
                 .tabItem {
@@ -26,47 +28,63 @@ struct ContentView: View {
                 }
                 .tag(1)
             
+            // Motor Test (MAV_CMD_DO_MOTOR_TEST)
+            MotorTestView()
+                .tabItem {
+                    Label("Motors", systemImage: "fanblades")
+                }
+                .tag(2)
+            
             // Flight Modes
             FlightModeView()
                 .tabItem {
                     Label("Modes", systemImage: "airplane")
                 }
-                .tag(2)
+                .tag(3)
+            
+            // --- "More" altindakiler ---
             
             // Map View
             EnhancedMapView(mavlinkManager: MAVLinkManager.shared)
                 .tabItem {
                     Label("Map", systemImage: "map.fill")
                 }
-                .tag(3)
+                .tag(4)
             
             // Servo Monitor
             ServoMonitorView()
                 .tabItem {
                     Label("Servos", systemImage: "slider.horizontal.3")
                 }
-                .tag(4)
+                .tag(5)
             
             // Parameters
             ParametersView()
                 .tabItem {
                     Label("Params", systemImage: "list.bullet.rectangle")
                 }
-                .tag(5)
+                .tag(6)
             
             // Messages (STATUSTEXT + EKF health)
             MessagesView()
                 .tabItem {
                     Label("Messages", systemImage: "text.bubble")
                 }
-                .tag(6)
+                .tag(7)
             
             // Settings
             SettingsView()
                 .tabItem {
                     Label("Settings", systemImage: "gearshape")
                 }
-                .tag(7)
+                .tag(8)
+            
+            // GPS raw data / diagnostics
+            GPSView()
+                .tabItem {
+                    Label("GPS", systemImage: "location.north.circle")
+                }
+                .tag(9)
         }
         .accentColor(.cyan)
     }
