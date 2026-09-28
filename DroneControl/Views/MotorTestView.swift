@@ -47,9 +47,6 @@ struct MotorTestView: View {
     @State private var pwmValues: [Int: Double] = [1: 1000, 2: 1000, 3: 1000, 4: 1000]
     // Su anda calisan motor (ArduCopter ayni anda tek motor test eder)
     @State private var runningMotor: Int? = nil
-    // Guvenlik onayi
-    @State private var propsRemoved = false
-    
     // Keepalive: FC tarafinda timeout kisa tutulur, komut periyodik yenilenir.
     // Uygulama kapanir/baglanti koparsa motor en gec keepaliveTimeout sonra durur.
     private let keepaliveInterval: TimeInterval = 1.0
@@ -59,7 +56,7 @@ struct MotorTestView: View {
     // Motor testi sirasinda ArduCopter kendi icinde ARM eder ve heartbeat "armed" gosterir;
     // bu bizim baslattigimiz test ise engel degildir (isArmedByPilot bunu ayirt eder).
     private var canTest: Bool {
-        mavlinkManager.isConnected && !mavlinkManager.isArmedByPilot && propsRemoved
+        mavlinkManager.isConnected && !mavlinkManager.isArmedByPilot
     }
     
     var body: some View {
@@ -85,8 +82,6 @@ struct MotorTestView: View {
                     motorCard(.motor(4))   // arka sag
                 }
                 
-                stopAllButton
-                ackCard
                 mappingCard
             }
             .padding()
@@ -130,19 +125,28 @@ struct MotorTestView: View {
                 }
             }
             
-            Toggle(isOn: $propsRemoved) {
-                Text("Propellers removed - I confirm")
-                    .font(.subheadline)
-                    .foregroundColor(.white)
-            }
-            .toggleStyle(SwitchToggleStyle(tint: .orange))
-            .onChange(of: propsRemoved) { on in
-                if !on { stopAll() }
-            }
+            stopAllButton
             
-            Text("Motor spins only while running. Command is refreshed every \(Int(keepaliveInterval))s with a \(Int(keepaliveTimeout))s timeout, so the motor stops by itself if the link drops.")
-                .font(.caption)
-                .foregroundColor(.gray)
+            HStack {
+                Text("Last ACK:")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+                if let ok = mavlinkManager.motorTestAckAccepted {
+                    Image(systemName: ok ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        .foregroundColor(ok ? .green : .red)
+                    Text(mavlinkManager.motorTestAckText)
+                        .font(.caption)
+                        .foregroundColor(ok ? .green : .red)
+                } else {
+                    Text("--")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+                Spacer()
+                Text("keepalive \(Int(keepaliveInterval))s / timeout \(Int(keepaliveTimeout))s")
+                    .font(.caption2)
+                    .foregroundColor(.gray)
+            }
         }
         .padding()
         .background(Color.black.opacity(0.3))
@@ -280,28 +284,6 @@ struct MotorTestView: View {
             .cornerRadius(12)
         }
         .disabled(!mavlinkManager.isConnected)
-    }
-    
-    // MARK: - ACK
-    private var ackCard: some View {
-        HStack {
-            Text("Last ACK:")
-                .font(.caption)
-                .foregroundColor(.gray)
-            if let ok = mavlinkManager.motorTestAckAccepted {
-                Image(systemName: ok ? "checkmark.circle.fill" : "xmark.circle.fill")
-                    .foregroundColor(ok ? .green : .red)
-                Text(mavlinkManager.motorTestAckText)
-                    .font(.caption)
-                    .foregroundColor(ok ? .green : .red)
-            } else {
-                Text("--")
-                    .font(.caption)
-                    .foregroundColor(.gray)
-            }
-            Spacer()
-        }
-        .padding(.horizontal)
     }
     
     // MARK: - Mapping info
