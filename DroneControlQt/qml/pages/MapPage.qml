@@ -9,20 +9,42 @@ import "../components"
 Item {
     Rectangle { anchors.fill: parent; color: Theme.bg }
 
+    property bool leafletFailed: false
+    property bool useLeaflet: hasWebView && !leafletFailed
+    property bool useLocation: !useLeaflet && hasMapSupport
+
     Loader {
+        id: mapLoader
         anchors.fill: parent
-        active: hasMapSupport
-        source: hasMapSupport ? "MapView.qml" : ""
+        active: useLeaflet || useLocation
+        source: useLeaflet ? "LeafletMapView.qml" : (useLocation ? "MapView.qml" : "")
+        onStatusChanged: {
+            if (status === Loader.Error) {
+                console.log("[MAP] failed to load " + source + " (QML error, see messages above)")
+                if (useLeaflet) leafletFailed = true       // fall back to the Qt Location map
+            } else if (status === Loader.Ready) {
+                console.log("[MAP] loaded " + source)
+            }
+        }
+    }
+
+    Connections {
+        target: mapLoader.item
+        ignoreUnknownSignals: true
+        function onFailed() {
+            if (hasMapSupport) { console.log("[MAP] Leaflet page failed - switching to the Qt Location map"); leafletFailed = true }
+        }
     }
 
     ColumnLayout {
-        visible: !hasMapSupport
+        visible: !useLeaflet && !useLocation
         anchors.centerIn: parent
         spacing: 10
         width: Math.min(parent.width - 40, 420)
         Text { text: "▦"; color: Theme.gray; font.pixelSize: 40; Layout.alignment: Qt.AlignHCenter }
         Text {
-            text: "Map not available\nThis build was made without the Qt Location module (QT += location)."
+            text: leafletFailed ? "Map not available\nLeafletMapView.qml failed to load (see Application Output) and Qt Location is not in this build."
+                                : "Map not available\nThis build has neither Qt WebView (Leaflet map) nor Qt Location."
             color: Theme.gray
             font.pixelSize: 14
             horizontalAlignment: Text.AlignHCenter

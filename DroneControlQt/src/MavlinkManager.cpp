@@ -176,6 +176,34 @@ MavlinkManager::MavlinkManager(QObject *parent)
         emit restoreChanged();
     });
 
+    m_missionTimer.setSingleShot(true);
+    m_missionTimer.setInterval(1500);
+    connect(&m_missionTimer, &QTimer::timeout, this, [this]() {
+        if (m_missionState == QLatin1String("uploading")) {
+            if (++m_missionRetries > 5) { setMissionState(QStringLiteral("error"), QStringLiteral("Upload timeout")); return; }
+            if (m_missionPendingSeq < 0) {
+                mavlink_message_t msg;
+                mavlink_msg_mission_count_pack(m_systemId, m_componentId, &msg, m_targetSystemId, m_targetComponentId,
+                                               uint16_t(m_txItems.size()), MAV_MISSION_TYPE_MISSION, 0);
+                sendMessage(msg);
+            } else {
+                sendMissionItemInt(m_missionPendingSeq);
+            }
+            m_missionTimer.start();
+        } else if (m_missionState == QLatin1String("downloading")) {
+            if (++m_missionRetries > 5) { setMissionState(QStringLiteral("error"), QStringLiteral("Download timeout")); return; }
+            if (m_missionPendingSeq < 0) {
+                mavlink_message_t msg;
+                mavlink_msg_mission_request_list_pack(m_systemId, m_componentId, &msg, m_targetSystemId, m_targetComponentId,
+                                                      MAV_MISSION_TYPE_MISSION);
+                sendMessage(msg);
+            } else {
+                sendMissionRequestInt(m_missionPendingSeq);
+            }
+            m_missionTimer.start();
+        }
+    });
+
     m_motorTestClearTimer.setSingleShot(true);
     m_motorTestClearTimer.setInterval(2000);
     connect(&m_motorTestClearTimer, &QTimer::timeout, this, [this]() {
@@ -232,6 +260,8 @@ void MavlinkManager::requestTelemetryMessages()
         {MAVLINK_MSG_ID_SCALED_PRESSURE, 500000},      // 2 Hz
         {MAVLINK_MSG_ID_SCALED_IMU, 100000},           // 10 Hz (IMU dead-reckoning speed)
         {MAVLINK_MSG_ID_EKF_STATUS_REPORT, 500000},    // 2 Hz
+        {MAVLINK_MSG_ID_MISSION_CURRENT, 1000000},     // 1 Hz
+        {MAVLINK_MSG_ID_HOME_POSITION, 2000000},       // 0.5 Hz
     };
     for (const auto &m : messages)
         setMessageInterval(m.id, m.us);
@@ -322,14 +352,22 @@ void MavlinkManager::processMessage(const mavlink_message_t &msg)
     case MAVLINK_MSG_ID_STATUSTEXT: {
         mavlink_statustext_t m; mavlink_msg_statustext_decode(&msg, &m); handleStatusText(m); break; }
     case MAVLINK_MSG_ID_MISSION_COUNT: {
-        mavlink_mission_count_t m; mavlink_msg_mission_count_decode(&msg, &m);
-        qDebug() << "[MAVLINK] Mission count:" << m.count; break; }
+        mavlink_mission_count_t m; mavlink_msg_mission_count_decode(&msg, &m); handleMissionCount(m); break; }
+    case MAVLINK_MSG_ID_MISSION_REQUEST: {
+        mavlink_mission_request_t m; mavlink_msg_mission_request_decode(&msg, &m); handleMissionRequest(m.seq, false); break; }
+    case MAVLINK_MSG_ID_MISSION_REQUEST_INT: {
+        mavlink_mission_request_int_t m; mavlink_msg_mission_request_int_decode(&msg, &m); handleMissionRequest(m.seq, true); break; }
+    case MAVLINK_MSG_ID_MISSION_ITEM_INT: {
+        mavlink_mission_item_int_t m; mavlink_msg_mission_item_int_decode(&msg, &m); handleMissionItemInt(m); break; }
+    case MAVLINK_MSG_ID_MISSION_ACK: {
+        mavlink_mission_ack_t m; mavlink_msg_mission_ack_decode(&msg, &m); handleMissionAck(m); break; }
     case MAVLINK_MSG_ID_MISSION_CURRENT: {
-        mavlink_mission_current_t m; mavlink_msg_mission_current_decode(&msg, &m);
-        qDebug() << "[MAVLINK] Current mission item:" << m.seq; break; }
+        mavlink_mission_current_t m; mavlink_msg_mission_current_decode(&msg, &m); handleMissionCurrent(m); break; }
     case MAVLINK_MSG_ID_MISSION_ITEM_REACHED: {
         mavlink_mission_item_reached_t m; mavlink_msg_mission_item_reached_decode(&msg, &m);
-        qDebug() << "[MAVLINK] Mission item reached:" << m.seq; break; }
+        qDebug() << "[MISSION] Item reached:" << m.seq; break; }
+    case MAVLINK_MSG_ID_HOME_POSITION: {
+        mavlink_home_position_t m; mavlink_msg_home_position_decode(&msg, &m); handleHomePosition(m); break; }
     case MAVLINK_MSG_ID_NAMED_VALUE_FLOAT: {
         mavlink_named_value_float_t m; mavlink_msg_named_value_float_decode(&msg, &m);
         qDebug() << "[MAVLINK]" << fixedString(m.name) << "=" << m.value; break; }
@@ -381,6 +419,10 @@ void MavlinkManager::handleHeartbeat(const mavlink_heartbeat_t &m)
     if (findMode(m.custom_mode) && m_flightMode != m.custom_mode) {
         m_flightMode = m.custom_mode;
         emit flightModeChanged();
+        if (m_flightMode != 4 && m_guidedValid) {
+            m_guidedValid = false;
+            emit guidedTargetChanged();
+        }
     }
 }
 
@@ -1104,7 +1146,7 @@ QVariantMap MavlinkManager::modeInfo(uint customMode) const
 QVariantList MavlinkManager::availableModes() const
 {
     // Same selection as FlightModeView.swift
-    static const uint modes[] = {0, 2, 16, 5, 9, 6, 3, 15};
+    static const uint modes[] = {0, 2, 16, 5, 4, 3, 6, 21, 9, 17, 7, 15};
     QVariantList out;
     for (uint m : modes)
         out.append(modeInfo(m));
@@ -1125,4 +1167,360 @@ QVariantList MavlinkManager::magCalReports() const
     for (const QVariantMap &m : m_magCalReports)
         out.append(m);
     return out;
+}
+
+
+// ---------------------------------------------------------------------------
+// Mission (MAVLink mission protocol, MISSION_TYPE_MISSION) and guided commands
+
+namespace {
+mavlink_mission_item_int_t makeItem(uint8_t sys, uint8_t comp, uint16_t seq, uint16_t command, uint8_t frame,
+                                    double lat, double lon, float alt, float p1 = 0, float p2 = 0, float p3 = 0, float p4 = 0,
+                                    uint8_t current = 0, uint8_t autocontinue = 1)
+{
+    mavlink_mission_item_int_t it{};
+    it.target_system = sys;
+    it.target_component = comp;
+    it.seq = seq;
+    it.command = command;
+    it.frame = frame;
+    it.x = int32_t(lat * 1e7);
+    it.y = int32_t(lon * 1e7);
+    it.z = alt;
+    it.param1 = p1; it.param2 = p2; it.param3 = p3; it.param4 = p4;
+    it.current = current;
+    it.autocontinue = autocontinue;
+    it.mission_type = MAV_MISSION_TYPE_MISSION;
+    return it;
+}
+
+QString missionResultText(uint8_t type)
+{
+    switch (type) {
+    case MAV_MISSION_ACCEPTED: return QStringLiteral("ACCEPTED");
+    case MAV_MISSION_ERROR: return QStringLiteral("ERROR");
+    case MAV_MISSION_UNSUPPORTED_FRAME: return QStringLiteral("UNSUPPORTED_FRAME");
+    case MAV_MISSION_UNSUPPORTED: return QStringLiteral("UNSUPPORTED");
+    case MAV_MISSION_NO_SPACE: return QStringLiteral("NO_SPACE");
+    case MAV_MISSION_INVALID: return QStringLiteral("INVALID");
+    case MAV_MISSION_INVALID_SEQUENCE: return QStringLiteral("INVALID_SEQUENCE");
+    case MAV_MISSION_DENIED: return QStringLiteral("DENIED");
+    case MAV_MISSION_OPERATION_CANCELLED: return QStringLiteral("CANCELLED");
+    default: return QStringLiteral("RESULT_%1").arg(type);
+    }
+}
+} // namespace
+
+QVariantList MavlinkManager::missionWaypoints() const
+{
+    QVariantList out;
+    for (const Waypoint &w : m_waypoints) {
+        QVariantMap m;
+        m.insert(QStringLiteral("lat"), w.lat);
+        m.insert(QStringLiteral("lng"), w.lon);
+        m.insert(QStringLiteral("alt"), w.alt);
+        out.append(m);
+    }
+    return out;
+}
+
+void MavlinkManager::setMissionState(const QString &state, const QString &text)
+{
+    m_missionState = state;
+    m_missionStatusText = text;
+    if (state != QLatin1String("uploading") && state != QLatin1String("downloading")) {
+        m_missionTimer.stop();
+        m_missionPendingSeq = -1;
+    }
+    qDebug() << "[MISSION]" << state << text;
+    emit missionChanged();
+}
+
+void MavlinkManager::addWaypoint(double lat, double lon, double altRel)
+{
+    Waypoint w; w.lat = lat; w.lon = lon; w.alt = altRel;
+    m_waypoints.append(w);
+    emit missionChanged();
+}
+
+void MavlinkManager::moveWaypoint(int index, double lat, double lon)
+{
+    if (index < 0 || index >= m_waypoints.size()) return;
+    m_waypoints[index].lat = lat;
+    m_waypoints[index].lon = lon;
+    emit missionChanged();
+}
+
+void MavlinkManager::removeWaypoint(int index)
+{
+    if (index < 0 || index >= m_waypoints.size()) return;
+    m_waypoints.removeAt(index);
+    emit missionChanged();
+}
+
+void MavlinkManager::setWaypointAltitude(int index, double altRel)
+{
+    if (index < 0 || index >= m_waypoints.size()) return;
+    m_waypoints[index].alt = altRel;
+    emit missionChanged();
+}
+
+void MavlinkManager::clearLocalMission()
+{
+    m_waypoints.clear();
+    emit missionChanged();
+}
+
+void MavlinkManager::rebuildMissionItems()
+{
+    // Presentation list of the items last exchanged with the vehicle
+    m_missionItems.clear();
+    const auto &src = m_rxItems.isEmpty() ? m_txItems : m_rxItems;
+    for (const auto &it : src) {
+        QVariantMap m;
+        m.insert(QStringLiteral("seq"), int(it.seq));
+        m.insert(QStringLiteral("command"), int(it.command));
+        m.insert(QStringLiteral("frame"), int(it.frame));
+        m.insert(QStringLiteral("lat"), it.x / 1e7);
+        m.insert(QStringLiteral("lon"), it.y / 1e7);
+        m.insert(QStringLiteral("alt"), double(it.z));
+        m_missionItems.append(m);
+    }
+}
+
+// ArduPilot mission layout: seq 0 = home, seq 1 = NAV_TAKEOFF, then NAV_WAYPOINTs, optional RTL
+void MavlinkManager::uploadMission(double takeoffAlt, bool rtlAtEnd)
+{
+    if (!m_connected) { setMissionState(QStringLiteral("error"), QStringLiteral("Not connected")); return; }
+    if (m_waypoints.isEmpty()) { setMissionState(QStringLiteral("error"), QStringLiteral("No waypoints")); return; }
+
+    const double hLat = m_homeValid ? m_homeLat : m_latitude;
+    const double hLon = m_homeValid ? m_homeLon : m_longitude;
+    m_txItems.clear();
+    m_rxItems.clear();
+    uint16_t seq = 0;
+    m_txItems.append(makeItem(m_targetSystemId, m_targetComponentId, seq++, MAV_CMD_NAV_WAYPOINT, MAV_FRAME_GLOBAL,
+                              hLat, hLon, float(m_altitude), 0, 0, 0, 0, 1));           // home
+    m_txItems.append(makeItem(m_targetSystemId, m_targetComponentId, seq++, MAV_CMD_NAV_TAKEOFF,
+                              MAV_FRAME_GLOBAL_RELATIVE_ALT, 0, 0, float(takeoffAlt)));
+    for (const Waypoint &w : m_waypoints)
+        m_txItems.append(makeItem(m_targetSystemId, m_targetComponentId, seq++, MAV_CMD_NAV_WAYPOINT,
+                                  MAV_FRAME_GLOBAL_RELATIVE_ALT, w.lat, w.lon, float(w.alt), 0, 2.0f));   // 2 m acceptance
+    if (rtlAtEnd)
+        m_txItems.append(makeItem(m_targetSystemId, m_targetComponentId, seq++, MAV_CMD_NAV_RETURN_TO_LAUNCH,
+                                  MAV_FRAME_MISSION, 0, 0, 0));
+
+    m_missionRetries = 0;
+    m_missionPendingSeq = -1;
+    setMissionState(QStringLiteral("uploading"), QStringLiteral("Sending %1 items").arg(m_txItems.size()));
+    mavlink_message_t msg;
+    mavlink_msg_mission_count_pack(m_systemId, m_componentId, &msg, m_targetSystemId, m_targetComponentId,
+                                   uint16_t(m_txItems.size()), MAV_MISSION_TYPE_MISSION, 0);
+    sendMessage(msg);
+    m_missionTimer.start();
+}
+
+void MavlinkManager::sendMissionItemInt(int seq)
+{
+    if (seq < 0 || seq >= m_txItems.size()) return;
+    mavlink_message_t msg;
+    mavlink_mission_item_int_t it = m_txItems.at(seq);
+    mavlink_msg_mission_item_int_encode(m_systemId, m_componentId, &msg, &it);
+    sendMessage(msg);
+}
+
+void MavlinkManager::sendMissionRequestInt(int seq)
+{
+    mavlink_message_t msg;
+    mavlink_msg_mission_request_int_pack(m_systemId, m_componentId, &msg, m_targetSystemId, m_targetComponentId,
+                                         uint16_t(seq), MAV_MISSION_TYPE_MISSION);
+    sendMessage(msg);
+}
+
+void MavlinkManager::handleMissionRequest(quint16 seq, bool intRequest)
+{
+    Q_UNUSED(intRequest)   // we always answer with MISSION_ITEM_INT (ArduPilot accepts it)
+    if (m_missionState != QLatin1String("uploading")) return;
+    if (seq >= m_txItems.size()) return;
+    m_missionPendingSeq = seq;
+    m_missionRetries = 0;
+    sendMissionItemInt(seq);
+    m_missionStatusText = QStringLiteral("Sending item %1/%2").arg(seq + 1).arg(m_txItems.size());
+    emit missionChanged();
+    m_missionTimer.start();
+}
+
+void MavlinkManager::handleMissionAck(const mavlink_mission_ack_t &m)
+{
+    if (m.mission_type != MAV_MISSION_TYPE_MISSION && m.mission_type != 0) return;
+    const QString text = missionResultText(m.type);
+    if (m_missionState == QLatin1String("uploading")) {
+        if (m.type == MAV_MISSION_ACCEPTED) {
+            m_missionCountOnVehicle = m_txItems.size();
+            rebuildMissionItems();
+            setMissionState(QStringLiteral("ok"), QStringLiteral("Mission uploaded (%1 items)").arg(m_txItems.size()));
+            if (m_missionStartAfterUpload) {
+                m_missionStartAfterUpload = false;
+                startMission();
+            }
+        } else {
+            setMissionState(QStringLiteral("error"), QStringLiteral("Upload rejected: ") + text);
+        }
+    } else if (m_missionState == QLatin1String("downloading")) {
+        // ack for our final ack - ignore
+    } else if (m.type != MAV_MISSION_ACCEPTED) {
+        setMissionState(QStringLiteral("error"), text);
+    }
+}
+
+void MavlinkManager::downloadMission()
+{
+    if (!m_connected) { setMissionState(QStringLiteral("error"), QStringLiteral("Not connected")); return; }
+    m_rxItems.clear();
+    m_rxExpected = 0;
+    m_missionRetries = 0;
+    m_missionPendingSeq = -1;
+    setMissionState(QStringLiteral("downloading"), QStringLiteral("Requesting mission list"));
+    mavlink_message_t msg;
+    mavlink_msg_mission_request_list_pack(m_systemId, m_componentId, &msg, m_targetSystemId, m_targetComponentId,
+                                          MAV_MISSION_TYPE_MISSION);
+    sendMessage(msg);
+    m_missionTimer.start();
+}
+
+void MavlinkManager::handleMissionCount(const mavlink_mission_count_t &m)
+{
+    if (m.mission_type != MAV_MISSION_TYPE_MISSION) return;
+    m_missionCountOnVehicle = m.count;
+    if (m_missionState != QLatin1String("downloading")) { emit missionChanged(); return; }
+    m_rxExpected = m.count;
+    m_rxItems.clear();
+    if (m.count == 0) {
+        mavlink_message_t msg;
+        mavlink_msg_mission_ack_pack(m_systemId, m_componentId, &msg, m_targetSystemId, m_targetComponentId,
+                                     MAV_MISSION_ACCEPTED, MAV_MISSION_TYPE_MISSION, 0);
+        sendMessage(msg);
+        m_waypoints.clear();
+        rebuildMissionItems();
+        setMissionState(QStringLiteral("ok"), QStringLiteral("Vehicle has no mission"));
+        return;
+    }
+    m_missionPendingSeq = 0;
+    m_missionRetries = 0;
+    sendMissionRequestInt(0);
+    m_missionTimer.start();
+}
+
+void MavlinkManager::handleMissionItemInt(const mavlink_mission_item_int_t &m)
+{
+    if (m_missionState != QLatin1String("downloading")) return;
+    if (m.seq != m_missionPendingSeq) return;
+    m_rxItems.append(m);
+    m_missionStatusText = QStringLiteral("Receiving item %1/%2").arg(m.seq + 1).arg(m_rxExpected);
+    emit missionChanged();
+    if (m.seq + 1 < m_rxExpected) {
+        m_missionPendingSeq = m.seq + 1;
+        m_missionRetries = 0;
+        sendMissionRequestInt(m_missionPendingSeq);
+        m_missionTimer.start();
+        return;
+    }
+    // complete
+    mavlink_message_t msg;
+    mavlink_msg_mission_ack_pack(m_systemId, m_componentId, &msg, m_targetSystemId, m_targetComponentId,
+                                 MAV_MISSION_ACCEPTED, MAV_MISSION_TYPE_MISSION, 0);
+    sendMessage(msg);
+    // Rebuild the local waypoint list from the NAV_WAYPOINT items (skip home at seq 0)
+    m_waypoints.clear();
+    for (const auto &it : m_rxItems) {
+        if (it.seq == 0) {
+            if (it.x != 0 || it.y != 0) { m_homeLat = it.x / 1e7; m_homeLon = it.y / 1e7; m_homeValid = true; emit homeChanged(); }
+            continue;
+        }
+        if (it.command == MAV_CMD_NAV_WAYPOINT || it.command == MAV_CMD_NAV_LOITER_UNLIM ||
+            it.command == MAV_CMD_NAV_LOITER_TIME || it.command == MAV_CMD_NAV_SPLINE_WAYPOINT ||
+            it.command == MAV_CMD_NAV_LAND) {
+            if (it.x == 0 && it.y == 0) continue;
+            Waypoint w; w.lat = it.x / 1e7; w.lon = it.y / 1e7; w.alt = it.z;
+            m_waypoints.append(w);
+        }
+    }
+    rebuildMissionItems();
+    setMissionState(QStringLiteral("ok"), QStringLiteral("Mission downloaded (%1 items, %2 waypoints)")
+                    .arg(m_rxItems.size()).arg(m_waypoints.size()));
+}
+
+void MavlinkManager::clearVehicleMission()
+{
+    mavlink_message_t msg;
+    mavlink_msg_mission_clear_all_pack(m_systemId, m_componentId, &msg, m_targetSystemId, m_targetComponentId,
+                                       MAV_MISSION_TYPE_MISSION);
+    sendMessage(msg);
+    m_txItems.clear();
+    m_rxItems.clear();
+    m_missionCountOnVehicle = 0;
+    rebuildMissionItems();
+    setMissionState(QStringLiteral("ok"), QStringLiteral("Vehicle mission cleared"));
+}
+
+void MavlinkManager::startMission()
+{
+    qDebug() << "[MISSION] Start (AUTO)";
+    setFlightMode(3);   // AUTO
+    sendCommandLong(MAV_CMD_MISSION_START, 0, 0);
+}
+
+void MavlinkManager::setCurrentMissionItem(int seq)
+{
+    mavlink_message_t msg;
+    mavlink_msg_mission_set_current_pack(m_systemId, m_componentId, &msg, m_targetSystemId, m_targetComponentId, uint16_t(seq));
+    sendMessage(msg);
+}
+
+void MavlinkManager::handleMissionCurrent(const mavlink_mission_current_t &m)
+{
+    if (m_missionCurrentSeq != m.seq) {
+        m_missionCurrentSeq = m.seq;
+        emit missionChanged();
+    }
+}
+
+void MavlinkManager::handleHomePosition(const mavlink_home_position_t &m)
+{
+    const double lat = m.latitude / 1e7, lon = m.longitude / 1e7;
+    if (!m_homeValid || std::fabs(lat - m_homeLat) > 1e-7 || std::fabs(lon - m_homeLon) > 1e-7) {
+        m_homeLat = lat; m_homeLon = lon; m_homeValid = (m.latitude != 0 || m.longitude != 0);
+        emit homeChanged();
+    }
+}
+
+void MavlinkManager::requestHome()
+{
+    sendCommandLong(MAV_CMD_REQUEST_MESSAGE, float(MAVLINK_MSG_ID_HOME_POSITION));
+}
+
+// Guided "fly here": switch to GUIDED and send a position target (ArduPilot accepts
+// SET_POSITION_TARGET_GLOBAL_INT with a position-only type mask).
+void MavlinkManager::gotoLocation(double lat, double lon, double altRel)
+{
+    qDebug() << "[GUIDED] Goto" << lat << lon << altRel;
+    if (m_flightMode != 4)
+        setFlightMode(4);
+    mavlink_message_t msg;
+    const uint16_t mask = 0x0DF8;   // use position only (ignore vel, acc, yaw, yaw rate)
+    mavlink_msg_set_position_target_global_int_pack(m_systemId, m_componentId, &msg, 0, m_targetSystemId, m_targetComponentId,
+                                                    MAV_FRAME_GLOBAL_RELATIVE_ALT_INT, mask,
+                                                    int32_t(lat * 1e7), int32_t(lon * 1e7), float(altRel),
+                                                    0, 0, 0, 0, 0, 0, 0, 0);
+    sendMessage(msg);
+    m_guidedLat = lat; m_guidedLon = lon; m_guidedValid = true;
+    emit guidedTargetChanged();
+}
+
+void MavlinkManager::takeoff(double altRel)
+{
+    qDebug() << "[GUIDED] Takeoff to" << altRel << "m";
+    if (m_flightMode != 4)
+        setFlightMode(4);
+    sendCommandLong(MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, float(altRel));
 }

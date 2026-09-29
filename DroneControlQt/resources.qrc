@@ -19,6 +19,7 @@
         <file>qml/components/JoystickControl.qml</file>
         <file>qml/components/KeyValueRow.qml</file>
         <file>qml/components/PageBackground.qml</file>
+        <file>qml/components/QuadMotorPanel.qml</file>
         <file>qml/components/ServoBar.qml</file>
         <file>qml/components/StatusBar.qml</file>
         <file>qml/components/TelemetryCard.qml</file>
@@ -35,5 +36,9 @@
         <file>qml/pages/ParametersPage.qml</file>
         <file>qml/pages/ServoPage.qml</file>
         <file>qml/pages/SettingsPage.qml</file>
+        <file>qml/pages/LeafletMapView.qml</file>
+        <file>web/map.html</file>
+        <file>web/leaflet.js</file>
+        <file>web/leaflet.css</file>
     </qresource>
 </RCC>

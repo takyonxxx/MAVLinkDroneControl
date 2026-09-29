@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>DroneControl Map</title>
+<style>
+/*LEAFLET_CSS*/
+</style>
+<style>
+/* Port of the MapWidget (Leaflet) look: dark background, no animations, arrow vehicle marker,
+   yellow traversed path, numbered draggable mission markers, dashed mission path. */
+* { transition: none !important; animation: none !important; -webkit-tap-highlight-color: transparent; }
+body, html { margin: 0; padding: 0; height: 100vh; width: 100vw; overflow: hidden; background: #1a1a2e;
+             font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
+#map { height: 100vh; width: 100vw; background: #1a1a2e; }
+.leaflet-container { background: #1a1a2e !important; }
+.leaflet-tile, .leaflet-tile-container img { opacity: 1 !important; border: none !important; outline: none !important;
+  padding: 0 !important; display: block !important; image-rendering: -webkit-optimize-contrast; }
+.leaflet-fade-anim .leaflet-tile { transition: none !important; }
+.seamark-tiles { filter: invert(1) brightness(2) contrast(1.2) !important; }
+.leaflet-marker-pane { z-index: 600 !important; }
+.vehicle-marker-icon { z-index: 10000 !important; transition: transform 160ms linear !important; will-change: transform; }
+.vehicle-icon-container { width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;
+  transform-origin: 50% 50%; }
+.vehicle-icon-container svg { filter: drop-shadow(0 0 4px rgba(0,0,0,0.8)); }
+.mission-marker, .home-marker, .target-marker, .waypoint-marker { background: none; border: none; }
+.leaflet-popup-content-wrapper { background: rgba(20, 20, 32, 0.95); color: #fff; border-radius: 8px;
+  border: 1px solid rgba(50,173,230,0.6); font-size: 12px; }
+.leaflet-popup-tip { background: rgba(20, 20, 32, 0.95); }
+.leaflet-popup-content { margin: 8px 12px; line-height: 1.45; }
+.leaflet-popup-content button { border: none; border-radius: 6px; padding: 6px 12px; color: #fff; cursor: pointer;
+  font-weight: 600; font-size: 12px; margin: 2px 2px 0 0; }
+.btn-del { background: #f44336; }
+.btn-goto { background: #32ADE6; color: #000 !important; }
+.leaflet-popup-close-button { color: #aaa !important; }
+#coords { position: absolute; left: 8px; bottom: 8px; z-index: 1000; background: rgba(0,0,0,0.55); color: #fff;
+  font: 11px/1.3 monospace; padding: 4px 8px; border-radius: 6px; pointer-events: none; white-space: nowrap; }
+#modehint { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); z-index: 1000;
+  background: rgba(50,173,230,0.9); color: #000; font: 600 12px sans-serif; padding: 5px 12px; border-radius: 14px;
+  pointer-events: none; display: none; }
+.leaflet-control-scale-line { background: rgba(0,0,0,0.5); color: #fff; border-color: #fff; }
+.leaflet-bar a { background: rgba(20,20,32,0.9); color: #fff; border-bottom: 1px solid #333; }
+.leaflet-bar a:hover { background: #32ADE6; color: #000; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="coords">--</div>
+<div id="modehint"></div>
+<script>
+/*LEAFLET_JS*/
+</script>
+<script>
+(function () {
+  'use strict';
+  // Tiles are served by the app's local cache server (offline support, shared with the
+  // MarenControlConsole tile cache). TILE_PORT is filled in by main.cpp; 0 = direct web access.
+  var TILE_PORT = /*TILE_PORT*/0;
+  var LOCAL = 'http://127.0.0.1:' + TILE_PORT + '/tiles/';
+  var TILES = TILE_PORT > 0 ? {
+    satellite: LOCAL + 'satellite/{z}/{x}/{y}',
+    street: LOCAL + 'street/{z}/{x}/{y}',
+    labels: LOCAL + 'labels/{z}/{x}/{y}',
+    seamarks: LOCAL + 'seamarks/{z}/{x}/{y}'
+  } : {
+    satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    street: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    labels: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+    seamarks: 'https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png'
+  };
+  var BLANK = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+  var events = [];
+  function emit(e) { events.push(e); }
+  var tileStats = { ok: 0, err: 0 };
+
+  var map = L.map('map', {
+    center: [39.9334, 32.8597], zoom: 17, zoomControl: true, attributionControl: false,
+    maxZoom: 22, minZoom: 2, preferCanvas: false,
+    zoomAnimation: false, fadeAnimation: false, markerZoomAnimation: false, inertia: false,
+    zoomSnap: 1, zoomDelta: 1, wheelDebounceTime: 60, wheelPxPerZoomLevel: 60,
+    updateWhenIdle: false, updateWhenZooming: false, keepBuffer: 8, bounceAtZoomLimits: false,
+    tap: false
+  });
+  L.control.scale({ imperial: false, position: 'bottomright' }).addTo(map);
+
+  map.createPane('pathPane');   map.getPane('pathPane').style.zIndex = 400; map.getPane('pathPane').style.pointerEvents = 'none';
+  map.createPane('missionPane'); map.getPane('missionPane').style.zIndex = 450;
+  map.createPane('vehiclePane'); map.getPane('vehiclePane').style.zIndex = 650;
+
+  function tileLayer(url, opts) {
+    var l = L.tileLayer(url, Object.assign({ maxZoom: 22, maxNativeZoom: 19, keepBuffer: 8, updateWhenZooming: false,
+                                              updateWhenIdle: false, errorTileUrl: BLANK }, opts || {}));
+    l.on('tileerror', function (e) {
+      if (e.tile) { e.tile.style.visibility = 'hidden'; e.tile.__failed = true; }
+      tileStats.err++;
+      if (tileStats.ok === 0 && tileStats.err === 6)
+        emit({ type: 'tiles', ok: false, url: L.Util.template(url, { s: 'a', z: 17, x: 0, y: 0 }) });
+    });
+    l.on('tileload', function (e) {
+      if (e.tile && e.tile.__failed) return;      // the blank errorTileUrl also fires 'load'
+      tileStats.ok++;
+      if (tileStats.ok === 1) emit({ type: 'tiles', ok: true });
+    });
+    return l;
+  }
+  var satelliteLayer = tileLayer(TILES.satellite, { zIndex: 1 });
+  var streetLayer = tileLayer(TILES.street, { zIndex: 1, maxNativeZoom: 19, subdomains: 'abc' });
+  var labelsLayer = tileLayer(TILES.labels, { zIndex: 2, opacity: 0.9 });
+  var seamarksLayer = tileLayer(TILES.seamarks, { zIndex: 3, opacity: 0.75, maxNativeZoom: 18, className: 'seamark-tiles' });
+  var currentBase = null;
+  var seamarksOn = false;
+
+  function setLayer(name) {
+    if (currentBase) map.removeLayer(currentBase);
+    if (map.hasLayer(labelsLayer)) map.removeLayer(labelsLayer);
+    if (name === 'street') currentBase = streetLayer;
+    else currentBase = satelliteLayer;
+    currentBase.addTo(map);
+    if (name === 'hybrid') labelsLayer.addTo(map);
+  }
+  setLayer('satellite');
+
+  // ---------------- vehicle marker + traversed path ----------------
+  var vehicleMarker = null, lastHeading = 0, lastSpeed = 0, follow = true, programmaticMove = false;
+  var traversed = [], traversedPath = null, MAX_PATH = 2000;
+  var homeMarker = null, targetMarker = null;
+
+  function vehicleIcon() {
+    return L.divIcon({
+      html: '<div class="vehicle-icon-container"><svg width="26" height="30" viewBox="0 0 18 22">' +
+            '<path d="M9,0 L18,18 L9,12 L0,18 Z" fill="#FF3B30" stroke="#FFFFFF" stroke-width="1.5" stroke-linejoin="round"/></svg></div>',
+      iconSize: [60, 60], iconAnchor: [30, 30], popupAnchor: [0, -20], className: 'vehicle-marker-icon'
+    });
+  }
+  function rotateVehicle(h) {
+    if (!vehicleMarker) return;
+    var el = vehicleMarker.getElement();
+    if (!el) return;
+    var c = el.querySelector('.vehicle-icon-container');
+    if (c) c.style.transform = 'rotate(' + h + 'deg)';
+  }
+  function distanceM(a, b) {
+    var R = 6371000, dLat = (b.lat - a.lat) * Math.PI / 180, dLng = (b.lng - a.lng) * Math.PI / 180;
+    var x = Math.sin(dLat / 2), y = Math.sin(dLng / 2);
+    var h = x * x + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * y * y;
+    return 2 * R * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+  }
+  function moveMap(fn) { programmaticMove = true; try { fn(); } finally { setTimeout(function () { programmaticMove = false; }, 50); } }
+
+  window.qtSetVehicle = function (lat, lng, heading, speed, armed) {
+    if (!isFinite(lat) || !isFinite(lng) || (lat === 0 && lng === 0)) return;
+    var pos = L.latLng(lat, lng);
+    lastHeading = heading; lastSpeed = speed;
+    if (!vehicleMarker) {
+      vehicleMarker = L.marker(pos, { icon: vehicleIcon(), pane: 'vehiclePane', interactive: true, keyboard: false })
+        .addTo(map).bindPopup('', { offset: [0, 8], autoPan: false });
+      vehicleMarker.on('popupopen', function () {
+        var p = vehicleMarker.getLatLng();
+        vehicleMarker.setPopupContent('<strong>Vehicle</strong><br>' + p.lat.toFixed(6) + ', ' + p.lng.toFixed(6) +
+          '<br>Heading: ' + lastHeading.toFixed(1) + '°<br>Speed: ' + lastSpeed.toFixed(1) + ' m/s');
+      });
+      moveMap(function () { map.setView(pos, 18); });
+    } else {
+      vehicleMarker.setLatLng(pos);
+    }
+    rotateVehicle(heading);
+    // traversed path (0.5 m minimum, reset on 30 m jumps)
+    if (armed) {
+      var add = true;
+      if (traversed.length) {
+        var d = distanceM(traversed[traversed.length - 1], pos);
+        if (d < 0.5) add = false;
+        else if (d > 30) { traversed = []; if (traversedPath) traversedPath.setLatLngs([]); }
+      }
+      if (add) {
+        traversed.push(pos);
+        if (!traversedPath)
+          traversedPath = L.polyline([], { color: '#FFFF00', weight: 3, opacity: 0.9, smoothFactor: 0,
+                                           renderer: L.svg({ padding: 0.5 }), interactive: false, pane: 'pathPane' }).addTo(map);
+        traversedPath.addLatLng(pos);
+        if (traversed.length > MAX_PATH) { traversed.shift(); var ll = traversedPath.getLatLngs(); ll.shift(); traversedPath.setLatLngs(ll); }
+      }
+    }
+    if (follow) moveMap(function () { map.panTo(pos, { animate: false }); });
+    document.getElementById('coords').textContent = lat.toFixed(6) + ', ' + lng.toFixed(6) + '  ' + heading.toFixed(0) + '°  ' + speed.toFixed(1) + ' m/s';
+  };
+  window.qtClearPath = function () { traversed = []; if (traversedPath) traversedPath.setLatLngs([]); };
+  window.qtFollow = function (on) { follow = !!on; if (follow && vehicleMarker) moveMap(function () { map.panTo(vehicleMarker.getLatLng(), { animate: false }); }); };
+  window.qtCenterOn = function (lat, lng, zoom) { moveMap(function () { if (zoom) map.setView([lat, lng], zoom); else map.panTo([lat, lng], { animate: false }); }); };
+  window.qtCenterVehicle = function () { if (vehicleMarker) moveMap(function () { map.setView(vehicleMarker.getLatLng(), Math.max(map.getZoom(), 17)); }); };
+  window.qtSetLayer = setLayer;
+  window.qtSetSeamarks = function (on) { seamarksOn = !!on; if (seamarksOn) seamarksLayer.addTo(map); else map.removeLayer(seamarksLayer); };
+  window.qtSetHome = function (lat, lng) {
+    if (!isFinite(lat) || (lat === 0 && lng === 0)) return;
+    if (!homeMarker) {
+      homeMarker = L.marker([lat, lng], { icon: L.divIcon({ className: 'home-marker', iconSize: [26, 26], iconAnchor: [13, 13],
+        html: '<div style="width:24px;height:24px;background:#34C759;border:2px solid #fff;border-radius:6px;display:flex;align-items:center;justify-content:center;font:bold 12px sans-serif;color:#fff;box-shadow:0 2px 4px rgba(0,0,0,.4)">H</div>' }),
+        pane: 'missionPane', interactive: true }).addTo(map).bindPopup('<strong>Home</strong>');
+    } else homeMarker.setLatLng([lat, lng]);
+  };
+  window.qtSetGuidedTarget = function (lat, lng) {
+    if (targetMarker) { map.removeLayer(targetMarker); targetMarker = null; }
+    if (!isFinite(lat) || (lat === 0 && lng === 0)) return;
+    targetMarker = L.marker([lat, lng], { icon: L.divIcon({ className: 'target-marker', iconSize: [28, 28], iconAnchor: [14, 14],
+      html: '<div style="width:26px;height:26px;border:3px solid #32ADE6;border-radius:50%;box-shadow:0 0 6px #32ADE6;display:flex;align-items:center;justify-content:center"><div style="width:6px;height:6px;background:#32ADE6;border-radius:50%"></div></div>' }),
+      pane: 'missionPane', interactive: false }).addTo(map);
+  };
+
+  // ---------------- mission ----------------
+  var missionMarkers = [], missionPath = null, currentSeq = -1, missionColor = '#e84c3c';
+  var clickMode = 'none';   // none | addwp | goto
+
+  function missionIcon(idx, active) {
+    var bg = active ? '#FF9500' : missionColor;
+    return L.divIcon({ className: 'mission-marker', iconSize: [26, 26], iconAnchor: [13, 13],
+      html: '<div style="width:24px;height:24px;background:' + bg + ';border:2px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font:bold 10px sans-serif;color:#fff;box-shadow:0 2px 4px rgba(0,0,0,.4)">' + (idx + 1) + '</div>' });
+  }
+  function redrawMissionPath() {
+    if (missionPath) { map.removeLayer(missionPath); missionPath = null; }
+    var pts = missionMarkers.map(function (mk) { return mk.getLatLng(); });
+    if (homeMarker && pts.length) pts.unshift(homeMarker.getLatLng());
+    if (pts.length > 1)
+      missionPath = L.polyline(pts, { color: missionColor, weight: 3, opacity: 0.9, dashArray: '10, 6', pane: 'pathPane', interactive: false }).addTo(map);
+  }
+  function refreshMissionNumbers() {
+    missionMarkers.forEach(function (mk, i) {
+      mk.setIcon(missionIcon(i, i + 1 === currentSeq));
+      var p = mk.getLatLng();
+      mk.wpIndex = i;
+    });
+    redrawMissionPath();
+  }
+  function popupFor(mk) {
+    var i = mk.wpIndex, p = mk.getLatLng();
+    return '<strong>Waypoint ' + (i + 1) + '</strong><br>' + p.lat.toFixed(6) + ', ' + p.lng.toFixed(6) +
+           (mk.wpAlt !== undefined ? '<br>Alt ' + mk.wpAlt + ' m' : '') +
+           '<br><button class="btn-del" onclick="window.qtDeleteWp(' + i + ')">Delete</button>';
+  }
+  window.qtSetMission = function (items) {
+    if (typeof items === 'string') items = JSON.parse(items);
+    missionMarkers.forEach(function (mk) { map.removeLayer(mk); });
+    missionMarkers = [];
+    (items || []).forEach(function (it, i) {
+      var mk = L.marker([it.lat, it.lng], { icon: missionIcon(i, false), draggable: true, pane: 'missionPane', zIndexOffset: 500 });
+      mk.wpIndex = i; mk.wpAlt = it.alt;
+      mk.bindPopup('', { closeButton: true, autoPan: false });
+      mk.on('popupopen', function () { mk.setPopupContent(popupFor(mk)); });
+      mk.on('dragend', function (e) { var p = e.target.getLatLng(); redrawMissionPath(); emit({ type: 'wpMove', index: mk.wpIndex, lat: p.lat, lng: p.lng }); });
+      mk.on('drag', function () { redrawMissionPath(); });
+      mk.addTo(map);
+      missionMarkers.push(mk);
+    });
+    refreshMissionNumbers();
+  };
+  window.qtDeleteWp = function (i) { map.closePopup(); emit({ type: 'wpDelete', index: i }); };
+  window.qtSetCurrentSeq = function (seq) { currentSeq = seq; refreshMissionNumbers(); };
+  window.qtSetClickMode = function (mode) {
+    clickMode = mode;
+    var h = document.getElementById('modehint');
+    if (mode === 'addwp') { h.textContent = 'Tap the map to add waypoints'; h.style.display = 'block'; }
+    else if (mode === 'goto') { h.textContent = 'Tap the map to fly there (Guided)'; h.style.display = 'block'; }
+    else h.style.display = 'none';
+    map.getContainer().style.cursor = mode === 'none' ? '' : 'crosshair';
+  };
+  window.qtFitMission = function () {
+    var pts = missionMarkers.map(function (mk) { return mk.getLatLng(); });
+    if (vehicleMarker) pts.push(vehicleMarker.getLatLng());
+    if (pts.length) moveMap(function () { map.fitBounds(L.latLngBounds(pts).pad(0.2), { animate: false }); });
+  };
+
+  map.on('click', function (e) {
+    if (clickMode === 'addwp') emit({ type: 'wpAdd', lat: e.latlng.lat, lng: e.latlng.lng });
+    else if (clickMode === 'goto') emit({ type: 'goto', lat: e.latlng.lat, lng: e.latlng.lng });
+  });
+  // right click / long press: add waypoint (like the MapWidget), or a popup with actions
+  map.on('contextmenu', function (e) {
+    L.DomEvent.preventDefault(e);
+    var lat = e.latlng.lat, lng = e.latlng.lng;
+    L.popup({ closeButton: false, autoPan: false }).setLatLng(e.latlng).setContent(
+      '<div style="font:11px monospace">' + lat.toFixed(6) + ', ' + lng.toFixed(6) + '</div>' +
+      '<button class="btn-del" style="background:#e84c3c" onclick="window.qtCtx(\'wpAdd\',' + lat + ',' + lng + ')">+ Waypoint</button>' +
+      '<button class="btn-goto" onclick="window.qtCtx(\'goto\',' + lat + ',' + lng + ')">Fly here</button>').openOn(map);
+  });
+  window.qtCtx = function (type, lat, lng) { map.closePopup(); emit({ type: type, lat: lat, lng: lng }); };
+  map.on('dragstart', function () { if (!programmaticMove && follow) { follow = false; emit({ type: 'followOff' }); } });
+  map.on('mousemove', function (e) { if (!vehicleMarker) document.getElementById('coords').textContent = e.latlng.lat.toFixed(6) + ', ' + e.latlng.lng.toFixed(6); });
+
+  window.qtSetBottomInset = function (px) {
+    var els = document.querySelectorAll('.leaflet-bottom');
+    for (var i = 0; i < els.length; i++) els[i].style.bottom = px + 'px';
+    document.getElementById('coords').style.bottom = (px + 8) + 'px';
+  };
+  window.qtGetCenter = function () { var c = map.getCenter(); emit({ type: 'center', lat: c.lat, lng: c.lng }); };
+  window.qtPullEvents = function () { var out = JSON.stringify(events); events = []; return out; };
+  window.qtReady = true;
+  emit({ type: 'ready' });
+})();
+</script>
+</body>
+</html>

@@ -10,13 +10,15 @@ Item {
     property bool compact: width < 600
     property real joystickSize: compact ? 140 : 180
     property bool active: false          // set by Main.qml when this tab is current
+    property bool everActive: false
+    onActiveChanged: if (active) everActive = true
 
-    // Sending MANUAL_CONTROL at 20 Hz while this page is shown or a gamepad is connected
-    // (the iOS app keeps sending once the tab has been opened).
+    // MANUAL_CONTROL at 20 Hz once this tab has been opened (like the iOS app) or a gamepad is
+    // connected. Stopping the stream mid-flight would trigger ArduPilot's radio failsafe.
     Timer {
         interval: 50
         repeat: true
-        running: mavlink.connected && (page.active || gamepad.controllerConnected)
+        running: mavlink.connected && (page.everActive || gamepad.controllerConnected)
         onTriggered: {
             syncGamepadValues()
             sendManualControl()

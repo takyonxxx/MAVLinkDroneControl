@@ -16,6 +16,16 @@ qtHaveModule(location) {
     message("Qt Location not found - map tab disabled")
 }
 
+# Map tab: Leaflet page (port of the MapWidget) in a WebView - native WebView on Android,
+# Qt WebEngine on desktop. Falls back to Qt Location when the module is missing.
+qtHaveModule(webview) {
+    QT += webview
+    DEFINES += HAVE_QT_WEBVIEW
+    message("Qt WebView found - Leaflet map enabled")
+} else {
+    message("Qt WebView not found - Leaflet map disabled")
+}
+
 TARGET = DroneControl
 TEMPLATE = app
 CONFIG += c++17
@@ -39,6 +49,7 @@ SOURCES += \
     src/MessagesModel.cpp \
     src/SettingsManager.cpp \
     src/GamepadManager.cpp \
+    src/TileCache.cpp \
     src/DefaultParameters.cpp
 
 HEADERS += \
@@ -48,6 +59,7 @@ HEADERS += \
     src/MessagesModel.h \
     src/SettingsManager.h \
     src/GamepadManager.h \
+    src/TileCache.h \
     src/DefaultParameters.h
 
 RESOURCES += resources.qrc
@@ -59,6 +71,7 @@ DISTFILES += \
     qml/components/*.qml \
     qml/pages/*.qml \
     android/AndroidManifest.xml \
+    web/map.html \
     README.md
 
 # --- Desktop ---------------------------------------------------------------

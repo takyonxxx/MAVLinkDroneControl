@@ -52,8 +52,9 @@ QtObject {
         return red
     }
 
+    // 3S pack thresholds matching the vehicle's BATT_LOW_VOLT (10.8) / BATT_CRT_VOLT (10.5)
     function voltageColor(v) {
-        if (v > 11.5) return green
+        if (v > 10.8) return green
         if (v > 10.5) return orange
         return red
     }

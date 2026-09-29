@@ -119,6 +119,20 @@ class MavlinkManager : public QObject
 
     Q_PROPERTY(QVariantList availableModes READ availableModes CONSTANT)
 
+    // Mission / guided
+    Q_PROPERTY(QVariantList missionItems READ missionItems NOTIFY missionChanged)   // [{seq,command,lat,lon,alt,frame}]
+    Q_PROPERTY(QVariantList missionWaypoints READ missionWaypoints NOTIFY missionChanged) // NAV_WAYPOINT items only [{lat,lng,alt}]
+    Q_PROPERTY(QString missionState READ missionState NOTIFY missionChanged)         // idle|uploading|downloading|ok|error
+    Q_PROPERTY(QString missionStatusText READ missionStatusText NOTIFY missionChanged)
+    Q_PROPERTY(int missionCurrentSeq READ missionCurrentSeq NOTIFY missionChanged)
+    Q_PROPERTY(int missionCountOnVehicle READ missionCountOnVehicle NOTIFY missionChanged)
+    Q_PROPERTY(double homeLatitude READ homeLatitude NOTIFY homeChanged)
+    Q_PROPERTY(double homeLongitude READ homeLongitude NOTIFY homeChanged)
+    Q_PROPERTY(bool homeValid READ homeValid NOTIFY homeChanged)
+    Q_PROPERTY(double guidedTargetLatitude READ guidedTargetLatitude NOTIFY guidedTargetChanged)
+    Q_PROPERTY(double guidedTargetLongitude READ guidedTargetLongitude NOTIFY guidedTargetChanged)
+    Q_PROPERTY(bool guidedTargetValid READ guidedTargetValid NOTIFY guidedTargetChanged)
+
 public:
     explicit MavlinkManager(QObject *parent = nullptr);
     ~MavlinkManager() override;
@@ -200,6 +214,36 @@ public:
     QVariantList availableModes() const;
     Q_INVOKABLE QVariantMap modeInfo(uint customMode) const;
 
+    QVariantList missionItems() const { return m_missionItems; }
+    QVariantList missionWaypoints() const;
+    QString missionState() const { return m_missionState; }
+    QString missionStatusText() const { return m_missionStatusText; }
+    int missionCurrentSeq() const { return m_missionCurrentSeq; }
+    int missionCountOnVehicle() const { return m_missionCountOnVehicle; }
+    double homeLatitude() const { return m_homeLat; }
+    double homeLongitude() const { return m_homeLon; }
+    bool homeValid() const { return m_homeValid; }
+    double guidedTargetLatitude() const { return m_guidedLat; }
+    double guidedTargetLongitude() const { return m_guidedLon; }
+    bool guidedTargetValid() const { return m_guidedValid; }
+
+    // --- mission editing (local list of waypoints, lat/lon deg, alt m relative) ---
+    Q_INVOKABLE void addWaypoint(double lat, double lon, double altRel);
+    Q_INVOKABLE void moveWaypoint(int index, double lat, double lon);
+    Q_INVOKABLE void removeWaypoint(int index);
+    Q_INVOKABLE void setWaypointAltitude(int index, double altRel);
+    Q_INVOKABLE void clearLocalMission();
+    // --- mission protocol ---
+    Q_INVOKABLE void uploadMission(double takeoffAlt, bool rtlAtEnd);
+    Q_INVOKABLE void downloadMission();
+    Q_INVOKABLE void clearVehicleMission();
+    Q_INVOKABLE void startMission();                 // MAV_CMD_MISSION_START (+ AUTO mode)
+    Q_INVOKABLE void setCurrentMissionItem(int seq);
+    // --- guided ---
+    Q_INVOKABLE void gotoLocation(double lat, double lon, double altRel);
+    Q_INVOKABLE void takeoff(double altRel);
+    Q_INVOKABLE void requestHome();
+
     // --- link ---
     Q_INVOKABLE void setEndpoint(const QString &host, int port, int localPort = 14550);
     Q_INVOKABLE void connectVehicle();
@@ -253,6 +297,9 @@ signals:
     void magCalChanged();
     void simpleCalChanged();
     void commandAck(int command, int result, const QString &resultText);
+    void missionChanged();
+    void homeChanged();
+    void guidedTargetChanged();
 
 private:
     // parsing
@@ -283,6 +330,17 @@ private:
     void handleMagCalReport(const mavlink_mag_cal_report_t &m);
     void handleCommandAck(const mavlink_command_ack_t &m);
     void handleStatusText(const mavlink_statustext_t &m);
+    void handleMissionCount(const mavlink_mission_count_t &m);
+    void handleMissionRequest(quint16 seq, bool intRequest);
+    void handleMissionItemInt(const mavlink_mission_item_int_t &m);
+    void handleMissionAck(const mavlink_mission_ack_t &m);
+    void handleMissionCurrent(const mavlink_mission_current_t &m);
+    void handleHomePosition(const mavlink_home_position_t &m);
+    void sendMissionItemInt(int seq);
+    void sendMissionRequestInt(int seq);
+    void setMissionState(const QString &state, const QString &text);
+    void rebuildMissionItems();
+    struct Waypoint { double lat = 0; double lon = 0; double alt = 10; };
 
     UdpConnection m_udp;
     mavlink_status_t m_status{};
@@ -368,4 +426,23 @@ private:
 
     QVariantMap m_gyroCalState, m_baroCalState;
     QString m_pendingPreflightCal;
+
+    // mission
+    QList<Waypoint> m_waypoints;                 // local editable list
+    QVariantList m_missionItems;                 // items as sent/received (seq 0 = home)
+    QList<mavlink_mission_item_int_t> m_txItems; // items being uploaded
+    QList<mavlink_mission_item_int_t> m_rxItems; // items being downloaded
+    QString m_missionState = QStringLiteral("idle");
+    QString m_missionStatusText;
+    int m_missionCurrentSeq = 0;
+    int m_missionCountOnVehicle = 0;
+    int m_rxExpected = 0;
+    QTimer m_missionTimer;                       // retry / timeout
+    int m_missionRetries = 0;
+    int m_missionPendingSeq = -1;
+    bool m_missionStartAfterUpload = false;
+    double m_homeLat = 0, m_homeLon = 0;
+    bool m_homeValid = false;
+    double m_guidedLat = 0, m_guidedLon = 0;
+    bool m_guidedValid = false;
 };

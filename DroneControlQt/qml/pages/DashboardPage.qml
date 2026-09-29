@@ -62,36 +62,11 @@ Item {
                     heading: mavlink.heading
                 }
 
-                // Motor outputs M1-M4
-                Rectangle {
-                    Layout.fillWidth: true
+                // Motor outputs M1-M4 (Quad X)
+                QuadMotorPanel {
                     Layout.leftMargin: 16
                     Layout.rightMargin: 16
-                    radius: 10
-                    color: Theme.card
-                    implicitHeight: motorsCol.implicitHeight + 20
-                    ColumnLayout {
-                        id: motorsCol
-                        anchors.fill: parent
-                        anchors.leftMargin: 14
-                        anchors.rightMargin: 14
-                        anchors.topMargin: 10
-                        anchors.bottomMargin: 10
-                        spacing: 8
-                        RowLayout {
-                            spacing: 6
-                            Text { text: "≡"; color: Theme.cyan; font.pixelSize: 12 }
-                            Text { text: "Motor Outputs"; color: Theme.white; font.pixelSize: 13; font.bold: true }
-                        }
-                        Repeater {
-                            model: 4
-                            ServoBar {
-                                channel: index + 1
-                                pwm: mavlink.servoValues[index]
-                                compact: true
-                            }
-                        }
-                    }
+                    compact: true
                 }
 
                 // Roll / Pitch / Yaw
@@ -196,21 +171,13 @@ Item {
                     Item { Layout.fillHeight: true }
                 }
 
-                // Right: servos
+                // Right: motors (Quad X)
                 ColumnLayout {
                     Layout.preferredWidth: parent.sideWidth
                     Layout.maximumWidth: parent.sideWidth
                     Layout.fillHeight: true
                     spacing: 10
-                    Text { text: "Servo Outputs"; color: Theme.white; font.pixelSize: 14; font.bold: true }
-                    Repeater {
-                        model: 8
-                        ServoBar {
-                            channel: index + 1
-                            pwm: mavlink.servoValues[index]
-                            compact: false
-                        }
-                    }
+                    QuadMotorPanel {}
                     Item { Layout.fillHeight: true }
                 }
             }

@@ -123,7 +123,7 @@ ApplicationWindow {
     Timer {
         id: shotTimer
         property int shot: 0
-        interval: 1500
+        interval: screenshotDelayMs
         repeat: true
         running: screenshotDir !== ""
         onTriggered: {
@@ -133,6 +133,7 @@ ApplicationWindow {
                 if (idx + 1 >= window.tabs.length) { shotTimer.stop(); Qt.quit(); return }
                 window.currentTab = idx + 1
                 // exercise a few actions so the screenshots show populated pages
+                if (idx + 1 === 4) { mavlink.addWaypoint(mavlink.latitude + 0.0006, mavlink.longitude + 0.0004, 15); mavlink.addWaypoint(mavlink.latitude + 0.0010, mavlink.longitude - 0.0003, 20); mavlink.uploadMission(15, true) }
                 if (idx + 1 === 6) { mavlink.requestAllParameters(); mavlink.parameters.toggleCategory("Radio (RC)") }
                 if (idx + 1 === 8) { mavlink.startCompassCalibration(true, false, true); mavlink.calibrateGyro() }
             })
