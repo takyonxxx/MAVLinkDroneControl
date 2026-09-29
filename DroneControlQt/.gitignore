@@ -1,0 +1,8 @@
+build*/
+*.pro.user*
+.qmake.stash
+*.o
+moc_*
+qrc_*
+Makefile*
+android-build/

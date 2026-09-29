@@ -1,0 +1,39 @@
+<RCC>
+    <qresource prefix="/">
+        <file>icons/app_icon.png</file>
+        <file>qml/Main.qml</file>
+        <file>qml/Theme.qml</file>
+        <file>qml/components/ActionButton.qml</file>
+        <file>qml/components/AttitudeIndicator.qml</file>
+        <file>qml/components/AttitudeValue.qml</file>
+        <file>qml/components/Banner.qml</file>
+        <file>qml/components/BatteryBar.qml</file>
+        <file>qml/components/Card.qml</file>
+        <file>qml/components/FlatButton.qml</file>
+        <file>qml/components/FlightTelemetryBar.qml</file>
+        <file>qml/components/GPSInfoBar.qml</file>
+        <file>qml/components/GPSInfoCard.qml</file>
+        <file>qml/components/HDivider.qml</file>
+        <file>qml/components/InfoBar.qml</file>
+        <file>qml/components/InfoItem.qml</file>
+        <file>qml/components/JoystickControl.qml</file>
+        <file>qml/components/KeyValueRow.qml</file>
+        <file>qml/components/PageBackground.qml</file>
+        <file>qml/components/ServoBar.qml</file>
+        <file>qml/components/StatusBar.qml</file>
+        <file>qml/components/TelemetryCard.qml</file>
+        <file>qml/components/VDivider.qml</file>
+        <file>qml/pages/CalibrationPage.qml</file>
+        <file>qml/pages/ControlPage.qml</file>
+        <file>qml/pages/DashboardPage.qml</file>
+        <file>qml/pages/FlightModePage.qml</file>
+        <file>qml/pages/GpsPage.qml</file>
+        <file>qml/pages/MapPage.qml</file>
+        <file>qml/pages/MapView.qml</file>
+        <file>qml/pages/MessagesPage.qml</file>
+        <file>qml/pages/MotorTestPage.qml</file>
+        <file>qml/pages/ParametersPage.qml</file>
+        <file>qml/pages/ServoPage.qml</file>
+        <file>qml/pages/SettingsPage.qml</file>
+    </qresource>
+</RCC>
