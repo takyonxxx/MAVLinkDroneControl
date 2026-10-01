@@ -377,6 +377,16 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
     private var connectionWatchdogTimer: Timer?
     private let connectionTimeout: TimeInterval = 5.0
     
+    // Voltaja dayali sarj senkronu. BATT_MONITOR=4 iken ArduPilot boot'tan beri
+    // harcanan mAh'i sayar ve pili dolu varsayar. Her baglantida bir kez, disarmed
+    // ve yuksuzken dinlenme voltajindan % tahmin edilip MAV_CMD_BATTERY_RESET ile
+    // FC'ye yazilir; boylece hem % hem de mAh failsafe'leri dogru baslar.
+    // (Yalnizca main thread'de kullanilir.)
+    private var socSyncDone = false
+    private var socSyncSamples = 0
+    private var socSyncVoltSum: Float = 0
+    private var socSyncWaitStart: Date?
+    
     init(host: String = "192.168.4.1", port: UInt16 = 14550, localPort: UInt16 = 14550) {
         self.udpConnection = UDPConnection(host: host, port: port, localPort: localPort)
         self.mavlinkProtocol = MAVLinkProtocol()
@@ -391,6 +401,7 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
             DispatchQueue.main.async {
                 self?.isConnected = connected
                 self?.droneState.isConnected = connected
+                if !connected { self?.resetBatterySocSync() }
             }
         }
     }
@@ -474,6 +485,8 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
                 let elapsed = Date().timeIntervalSince(lastTime)
                 if elapsed > self.connectionTimeout {
                     print("⚠️ Connection timeout - no heartbeat for \(elapsed)s")
+                    // Muhtemel pil degisimi / FC reboot: sonraki pilde tekrar kontrol et
+                    self.resetBatterySocSync()
                 }
             }
         }
@@ -995,11 +1008,84 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
             self.droneState.batteryVoltage = voltage
             self.droneState.batteryCurrent = current
             self.droneState.batteryRemaining = remaining
+            
+            self.checkBatterySocSync(voltage: voltage, current: current, remaining: remaining)
         }
         
         if isFirstUpdate || voltageChanged || remainingChanged {
             print("🔋 Battery: \(String(format: "%.2f", voltage))V, \(String(format: "%.2f", current))A, \(remaining)%")
         }
+    }
+    
+    // MARK: - Battery SoC sync
+    
+    /// Yuksuz (dinlenme) LiPo hucre voltaji -> yaklasik % sarj
+    private static func lipoRestingPercent(_ v: Float) -> Int {
+        let table: [(Float, Float)] = [
+            (3.30, 0),  (3.69, 10), (3.73, 20), (3.77, 30), (3.80, 40), (3.84, 50),
+            (3.87, 60), (3.95, 70), (4.02, 80), (4.11, 90), (4.20, 100),
+        ]
+        if v <= table[0].0 { return 0 }
+        if v >= table[table.count - 1].0 { return 100 }
+        for i in 1..<table.count where v <= table[i].0 {
+            let (v0, p0) = table[i - 1]
+            let (v1, p1) = table[i]
+            return Int((p0 + (v - v0) / (v1 - v0) * (p1 - p0)).rounded())
+        }
+        return 100
+    }
+    
+    private func resetBatterySocSync() {
+        socSyncDone = false
+        socSyncSamples = 0
+        socSyncVoltSum = 0
+        socSyncWaitStart = nil
+    }
+    
+    /// Main thread'de cagrilir (isArmed / parameters main'de guncellenir).
+    private func checkBatterySocSync(voltage: Float, current: Float, remaining: Int) {
+        if socSyncDone { return }
+        
+        // Yalnizca dinlenen, yuksuz pil anlamli voltaj verir
+        if isArmed || voltage < 5.0 || abs(current) > 1.5 {
+            socSyncSamples = 0
+            socSyncVoltSum = 0
+            return
+        }
+        
+        socSyncVoltSum += voltage
+        socSyncSamples += 1
+        if socSyncSamples < 6 { return }      // SYS_STATUS @ 2 Hz -> ~3 s ortalama
+        
+        // Hucre sayisi: MOT_BAT_VOLT_MAX'ten (12.6 -> 3S). Parametre inmesi icin
+        // 10 s bekle, gelmezse voltajdan tahmin et.
+        let cells: Int
+        if let vMax = parameters["MOT_BAT_VOLT_MAX"], vMax > 1.0 {
+            cells = Int((vMax / 4.2).rounded())
+        } else {
+            if socSyncWaitStart == nil { socSyncWaitStart = Date() }
+            if Date().timeIntervalSince(socSyncWaitStart!) < 10 {
+                socSyncSamples = 0
+                socSyncVoltSum = 0
+                return
+            }
+            cells = Int((voltage / 4.25).rounded(.up))
+        }
+        guard (1...14).contains(cells) else {
+            socSyncDone = true
+            return
+        }
+        
+        let avgV = socSyncVoltSum / Float(socSyncSamples)
+        let estimate = Self.lipoRestingPercent(avgV / Float(cells))
+        socSyncDone = true
+        
+        print("🔋 SoC check: \(String(format: "%.2f", avgV))V, \(cells)S, \(String(format: "%.3f", avgV / Float(cells)))V/cell -> ~\(estimate)% (FC: \(remaining)%)")
+        
+        if remaining >= 0 && abs(remaining - estimate) <= 10 { return }   // FC zaten yakin
+        
+        print("🔋 Sending BATTERY_RESET -> \(estimate)%")
+        sendCommandLong(MAV_CMD_BATTERY_RESET, p1: 1 /* battery 1 */, p2: Float(estimate))
     }
     
     func handleGlobalPositionInt(_ message: mavlink_global_position_int_t) {

@@ -396,6 +396,18 @@ private:
     float m_batteryVoltage = 0, m_batteryCurrent = 0;
     int m_batteryRemaining = 0;
 
+    // Voltage-based state-of-charge sync. With BATT_MONITOR=4 ArduPilot counts
+    // consumed mAh from boot and assumes a full pack. Once per connection, while
+    // disarmed and unloaded, estimate SoC from resting voltage and push it to the
+    // FC with MAV_CMD_BATTERY_RESET so % and the mAh failsafes start correct.
+    void checkBatterySocSync(float voltage, float current, int remaining);
+    void resetBatterySocSync();
+    static int lipoRestingPercent(float cellVoltage);
+    bool m_socSyncDone = false;
+    int m_socSyncSamples = 0;
+    float m_socSyncVoltSum = 0;
+    QElapsedTimer m_socSyncWait;
+
     QVariantList m_servoValues;
 
     ParameterModel m_parameters;

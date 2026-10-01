@@ -145,6 +145,8 @@ MavlinkManager::MavlinkManager(QObject *parent)
             return;
         m_connected = c;
         emit connectedChanged();
+        if (!c)
+            resetBatterySocSync();
     });
 
     m_heartbeatTimer.setInterval(500);
@@ -155,8 +157,10 @@ MavlinkManager::MavlinkManager(QObject *parent)
         const bool alive = m_heartbeatEver && m_lastHeartbeat.elapsed() < 5000;
         if (alive != m_heartbeatAlive) {
             m_heartbeatAlive = alive;
-            if (!alive)
+            if (!alive) {
                 qWarning() << "[MAVLINK] Connection timeout - no heartbeat for 5 s";
+                resetBatterySocSync();   // likely battery swap / FC reboot
+            }
             emit heartbeatAliveChanged();
         }
     });
@@ -447,8 +451,93 @@ void MavlinkManager::handleSysStatus(const mavlink_sys_status_t &m)
     m_batteryRemaining = remaining;
     emit batteryChanged();
 
+    checkBatterySocSync(voltage, current, remaining);
+
     if (firstUpdate || voltageChanged || remainingChanged)
         qDebug() << "[MAVLINK] Battery:" << voltage << "V" << current << "A" << remaining << "%";
+}
+
+// ---------------------------------------------------------------------------
+// Battery state-of-charge sync
+
+int MavlinkManager::lipoRestingPercent(float v)
+{
+    // Approximate resting (unloaded) LiPo voltage per cell -> % charge
+    static const float table[][2] = {
+        {3.30f, 0},  {3.69f, 10}, {3.73f, 20}, {3.77f, 30}, {3.80f, 40}, {3.84f, 50},
+        {3.87f, 60}, {3.95f, 70}, {4.02f, 80}, {4.11f, 90}, {4.20f, 100},
+    };
+    const int n = int(sizeof(table) / sizeof(table[0]));
+    if (v <= table[0][0])
+        return 0;
+    if (v >= table[n - 1][0])
+        return 100;
+    for (int i = 1; i < n; ++i) {
+        if (v <= table[i][0]) {
+            const float t = (v - table[i - 1][0]) / (table[i][0] - table[i - 1][0]);
+            return int(std::lround(table[i - 1][1] + t * (table[i][1] - table[i - 1][1])));
+        }
+    }
+    return 100;
+}
+
+void MavlinkManager::resetBatterySocSync()
+{
+    m_socSyncDone = false;
+    m_socSyncSamples = 0;
+    m_socSyncVoltSum = 0;
+    m_socSyncWait.invalidate();
+}
+
+void MavlinkManager::checkBatterySocSync(float voltage, float current, int remaining)
+{
+    if (m_socSyncDone)
+        return;
+
+    // Only a resting, unloaded pack gives a meaningful voltage
+    if (m_armed || voltage < 5.0f || std::fabs(current) > 1.5f) {
+        m_socSyncSamples = 0;
+        m_socSyncVoltSum = 0;
+        return;
+    }
+
+    m_socSyncVoltSum += voltage;
+    if (++m_socSyncSamples < 6)          // SYS_STATUS @ 2 Hz -> ~3 s average
+        return;
+
+    // Cell count: prefer MOT_BAT_VOLT_MAX (12.6 -> 3S). Give the param download
+    // up to 10 s, then fall back to a voltage guess.
+    int cells = 0;
+    const float vMax = m_parameters.value(QStringLiteral("MOT_BAT_VOLT_MAX"), -1.0f);
+    if (vMax > 1.0f) {
+        cells = int(std::lround(vMax / 4.2f));
+    } else {
+        if (!m_socSyncWait.isValid())
+            m_socSyncWait.start();
+        if (m_socSyncWait.elapsed() < 10000) {
+            m_socSyncSamples = 0;
+            m_socSyncVoltSum = 0;
+            return;
+        }
+        cells = int(std::ceil(voltage / 4.25f));
+    }
+    if (cells < 1 || cells > 14) {
+        m_socSyncDone = true;
+        return;
+    }
+
+    const float avgV = m_socSyncVoltSum / float(m_socSyncSamples);
+    const int estimate = lipoRestingPercent(avgV / float(cells));
+    m_socSyncDone = true;
+
+    qDebug() << "[MAVLINK] Battery SoC check:" << avgV << "V," << cells << "S,"
+             << (avgV / cells) << "V/cell -> ~" << estimate << "% (FC reports" << remaining << "%)";
+
+    if (remaining >= 0 && std::abs(remaining - estimate) <= 10)
+        return;   // FC already close enough
+
+    qDebug() << "[MAVLINK] Sending BATTERY_RESET ->" << estimate << "%";
+    sendCommandLong(MAV_CMD_BATTERY_RESET, 1.0f /*battery 1*/, float(estimate));
 }
 
 void MavlinkManager::handleGlobalPositionInt(const mavlink_global_position_int_t &m)
