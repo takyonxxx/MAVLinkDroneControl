@@ -8,9 +8,12 @@
 
 #include <QDateTime>
 #include <QElapsedTimer>
+#include <QHash>
 #include <QList>
 #include <QMap>
 #include <QObject>
+#include <QPair>
+#include <QUrl>
 #include <QTimer>
 #include <QVariantList>
 #include <QVariantMap>
@@ -63,6 +66,7 @@ class MavlinkManager : public QObject
     Q_PROPERTY(int gpsSatellites READ gpsSatellites NOTIFY gpsChanged)
     Q_PROPERTY(float gpsHdop READ gpsHdop NOTIFY gpsChanged)
     Q_PROPERTY(QVariantMap gpsRaw READ gpsRaw NOTIFY gpsChanged)
+    Q_PROPERTY(int gpsStreamRerequests READ gpsStreamRerequests NOTIFY streamRerequestsChanged)
     Q_PROPERTY(uint sensorsPresent READ sensorsPresent NOTIFY sysStatusChanged)
     Q_PROPERTY(uint sensorsEnabled READ sensorsEnabled NOTIFY sysStatusChanged)
     Q_PROPERTY(uint sensorsHealth READ sensorsHealth NOTIFY sysStatusChanged)
@@ -89,10 +93,16 @@ class MavlinkManager : public QObject
     Q_PROPERTY(ParameterModel *parameters READ parameters CONSTANT)
     Q_PROPERTY(int paramTotalCount READ paramTotalCount NOTIFY paramStateChanged)
     Q_PROPERTY(bool paramDownloading READ paramDownloading NOTIFY paramStateChanged)
-    Q_PROPERTY(bool restoreInProgress READ restoreInProgress NOTIFY restoreChanged)
-    Q_PROPERTY(int restoreProgress READ restoreProgress NOTIFY restoreChanged)
-    Q_PROPERTY(int restoreTotal READ restoreTotal NOTIFY restoreChanged)
     Q_PROPERTY(int defaultParameterCount READ defaultParameterCount CONSTANT)
+    // Bulk parameter write (Restore Defaults / Load from File) with PARAM_VALUE verification
+    Q_PROPERTY(bool paramWriteInProgress READ paramWriteInProgress NOTIFY paramWriteChanged)
+    Q_PROPERTY(int paramWriteSent READ paramWriteSent NOTIFY paramWriteChanged)
+    Q_PROPERTY(int paramWriteConfirmed READ paramWriteConfirmed NOTIFY paramWriteChanged)
+    Q_PROPERTY(int paramWriteTotal READ paramWriteTotal NOTIFY paramWriteChanged)
+    Q_PROPERTY(int paramWritePass READ paramWritePass NOTIFY paramWriteChanged)
+    Q_PROPERTY(QVariantMap paramWriteResult READ paramWriteResult NOTIFY paramWriteChanged)
+    // Parameter file loaded from local storage (summary, see loadParameterFile)
+    Q_PROPERTY(QVariantMap paramFile READ paramFile NOTIFY paramFileChanged)
 
     // Messages / EKF
     Q_PROPERTY(MessagesModel *messages READ messages CONSTANT)
@@ -164,6 +174,7 @@ public:
     int gpsSatellites() const { return m_gpsSatellites; }
     float gpsHdop() const { return m_gpsHdop; }
     QVariantMap gpsRaw() const { return m_gpsRaw; }
+    int gpsStreamRerequests() const { return m_streamRerequests.value(MAVLINK_MSG_ID_GPS_RAW_INT); }
     uint sensorsPresent() const { return m_sensorsPresent; }
     uint sensorsEnabled() const { return m_sensorsEnabled; }
     uint sensorsHealth() const { return m_sensorsHealth; }
@@ -186,10 +197,14 @@ public:
     ParameterModel *parameters() { return &m_parameters; }
     int paramTotalCount() const { return m_paramTotalCount; }
     bool paramDownloading() const { return m_paramDownloading; }
-    bool restoreInProgress() const { return m_restoreInProgress; }
-    int restoreProgress() const { return m_restoreProgress; }
-    int restoreTotal() const { return m_restoreTotal; }
     int defaultParameterCount() const;
+    bool paramWriteInProgress() const { return m_writeInProgress; }
+    int paramWriteSent() const { return m_writeSent; }
+    int paramWriteConfirmed() const { return m_writeConfirmed; }
+    int paramWriteTotal() const { return m_writeItems.size(); }
+    int paramWritePass() const { return m_writePass; }
+    QVariantMap paramWriteResult() const { return m_writeResult; }
+    QVariantMap paramFile() const { return m_paramFile; }
 
     MessagesModel *messages() { return &m_messages; }
     int ekfFlags() const { return m_ekfFlags; }
@@ -269,7 +284,14 @@ public:
     Q_INVOKABLE void requestParameter(const QString &name);
     Q_INVOKABLE void setParameter(const QString &name, float value);
     Q_INVOKABLE void restoreDefaultParameters();
-    Q_INVOKABLE void cancelRestore();
+    Q_INVOKABLE void cancelParamWrite();
+    Q_INVOKABLE void clearParamWriteResult();
+
+    // Local parameter file (.param, Mission Planner or QGC format)
+    Q_INVOKABLE bool loadParameterFile(const QUrl &url);
+    Q_INVOKABLE QVariantMap parameterFilePlan(bool keepCalibration, bool onlyChanged) const;
+    Q_INVOKABLE void writeParameterFile(bool keepCalibration, bool onlyChanged);
+    Q_INVOKABLE void clearParameterFile();
 
     static QString resultToString(quint8 result);
 
@@ -286,12 +308,14 @@ signals:
     void positionChanged();
     void attitudeChanged();
     void gpsChanged();
+    void streamRerequestsChanged();
     void sysStatusChanged();
     void hudChanged();
     void batteryChanged();
     void servosChanged();
     void paramStateChanged();
-    void restoreChanged();
+    void paramWriteChanged();
+    void paramFileChanged();
     void ekfChanged();
     void motorTestChanged();
     void magCalChanged();
@@ -309,6 +333,13 @@ private:
     void sendHeartbeat();
     void requestTelemetryMessages();
     void setMessageInterval(quint32 messageId, qint32 intervalUs);
+    // Stream keeper: SET_MESSAGE_INTERVAL lives in FC RAM - an FC reboot or a lost
+    // request silently stops a stream. Re-request any requested message that goes
+    // silent while the FC heartbeat is alive.
+    void checkTelemetryStreams();
+    QElapsedTimer m_streamClock;
+    QHash<quint32, qint64> m_streamLastRx, m_streamLastRequest;
+    QHash<quint32, int> m_streamAttempts, m_streamRerequests;
     void sendCommandLong(quint16 command, float p1 = 0, float p2 = 0, float p3 = 0, float p4 = 0,
                          float p5 = 0, float p6 = 0, float p7 = 0);
     void startPreflightCalTimeout(const QString &which);
@@ -413,10 +444,32 @@ private:
     ParameterModel m_parameters;
     int m_paramTotalCount = 0;
     bool m_paramDownloading = false;
-    bool m_restoreInProgress = false;
-    int m_restoreProgress = 0, m_restoreTotal = 0;
-    int m_restoreIndex = 0;
-    QTimer m_restoreTimer;
+    // Bulk write engine: send every item ~25 ms apart, wait for the PARAM_VALUE
+    // echo of each, resend the unconfirmed ones (3 passes max).
+    using ParamItem = QPair<QString, float>;
+    struct FilePlan {
+        QList<ParamItem> items;
+        int changed = 0, same = 0, unknown = 0, skippedCalibration = 0, skippedReadOnly = 0;
+        QVariantList changes;   // preview rows [{name, oldText, newText, isNew}]
+    };
+    FilePlan buildFilePlan(bool keepCalibration, bool onlyChanged, bool withPreview) const;
+    void startParamWrite(const QList<ParamItem> &items, const QString &source);
+    void paramWriteTick();
+    void finishParamWrite(const QString &error);
+    bool m_writeInProgress = false;
+    QString m_writeSource;
+    QList<ParamItem> m_writeItems;           // full list, original order
+    QList<ParamItem> m_writeSendList;        // current pass
+    QHash<QString, float> m_writePending;    // not yet confirmed: name -> expected
+    QHash<QString, float> m_writeEcho;       // last mismatching echo
+    int m_writeIndex = 0, m_writeSent = 0, m_writeConfirmed = 0, m_writePass = 0;
+    bool m_writeCancelled = false;
+    QElapsedTimer m_writeWait;
+    QTimer m_writeTimer;
+    QVariantMap m_writeResult;
+
+    QList<ParamItem> m_fileItems;            // parsed parameter file
+    QVariantMap m_paramFile;
 
     MessagesModel m_messages;
     int m_ekfFlags = 0;

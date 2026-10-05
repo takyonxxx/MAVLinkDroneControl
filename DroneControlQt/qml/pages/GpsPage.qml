@@ -35,6 +35,10 @@ Item {
             return { text: "NOT CONNECTED", detail: "No MAVLink link to the flight controller.", color: Theme.red }
         if (mavlink.sysStatusReceived && !sensorPresent)
             return { text: "GPS NOT DETECTED", detail: "SYS_STATUS reports no GPS sensor. Check wiring/port (SERIALx_PROTOCOL=5, GPS_TYPE) and power.", color: Theme.red }
+        if (!mavlink.heartbeatAlive)
+            return { text: "NO LINK TO FC", detail: "No HEARTBEAT from the flight controller. The telemetry link is down (FC power, ESP bridge, Wi-Fi) - not a GPS problem.", color: Theme.red }
+        if (rawReceived && !dataFlowing)
+            return { text: "GPS STREAM STOPPED", detail: "FC is alive but GPS_RAW_INT stopped (FC reboot or lost request). The app re-requests it automatically - re-requested " + mavlink.gpsStreamRerequests + " times so far.", color: Theme.orange }
         if (!rawReceived || !dataFlowing)
             return { text: "NO GPS DATA", detail: "GPS_RAW_INT is not arriving. Either the FC has no GPS driver active or the stream is not enabled.", color: Theme.red }
         if (fixType === 0)
@@ -107,6 +111,7 @@ Item {
 
             Card {
                 title: "Hardware / Link"; color: Theme.overlay
+                StatusRow { label: "FC heartbeat"; ok: mavlink.heartbeatAlive; text: mavlink.heartbeatAlive ? "ALIVE" : "LOST" }
                 StatusRow { label: "SYS_STATUS received"; ok: mavlink.sysStatusReceived; text: mavlink.sysStatusReceived ? "yes" : "waiting" }
                 StatusRow { label: "GPS sensor present"; ok: page.sensorPresent; text: mavlink.sysStatusReceived ? (page.sensorPresent ? "PRESENT" : "ABSENT") : "--" }
                 StatusRow { label: "GPS sensor enabled"; ok: page.sensorEnabled; text: mavlink.sysStatusReceived ? (page.sensorEnabled ? "ENABLED" : "DISABLED") : "--" }
@@ -116,6 +121,7 @@ Item {
                 KeyValueRow { label: "Message count"; value: page.rawReceived ? raw.messageCount : 0 }
                 KeyValueRow { label: "Rate"; value: page.rawReceived ? raw.rateHz.toFixed(1) + " Hz (requested 5 Hz)" : "--" }
                 KeyValueRow { label: "Last message"; value: page.secondsSinceLast }
+                KeyValueRow { label: "Re-requested"; value: mavlink.gpsStreamRerequests + "x" }
             }
 
             Card {

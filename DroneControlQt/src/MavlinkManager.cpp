@@ -2,9 +2,12 @@
 
 #include "MavlinkManager.h"
 #include "DefaultParameters.h"
+#include "ParameterFile.h"
 
 #include <QDebug>
+#include <QFile>
 #include <QSet>
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 
@@ -154,6 +157,7 @@ MavlinkManager::MavlinkManager(QObject *parent)
 
     m_watchdogTimer.setInterval(1000);
     connect(&m_watchdogTimer, &QTimer::timeout, this, [this]() {
+        checkTelemetryStreams();
         const bool alive = m_heartbeatEver && m_lastHeartbeat.elapsed() < 5000;
         if (alive != m_heartbeatAlive) {
             m_heartbeatAlive = alive;
@@ -165,20 +169,8 @@ MavlinkManager::MavlinkManager(QObject *parent)
         }
     });
 
-    m_restoreTimer.setInterval(25);   // ~40 msg/s so the ESP bridge is not flooded
-    connect(&m_restoreTimer, &QTimer::timeout, this, [this]() {
-        const auto &items = DefaultParameters::values();
-        if (m_restoreIndex >= items.size()) {
-            m_restoreTimer.stop();
-            m_restoreInProgress = false;
-            emit restoreChanged();
-            return;
-        }
-        const auto &item = items.at(m_restoreIndex++);
-        setParameter(item.first, item.second);
-        m_restoreProgress = m_restoreIndex;
-        emit restoreChanged();
-    });
+    m_writeTimer.setInterval(25);   // ~40 msg/s so the ESP bridge is not flooded
+    connect(&m_writeTimer, &QTimer::timeout, this, &MavlinkManager::paramWriteTick);
 
     m_missionTimer.setSingleShot(true);
     m_missionTimer.setInterval(1500);
@@ -250,11 +242,10 @@ void MavlinkManager::disconnectVehicle()
     }
 }
 
-void MavlinkManager::requestTelemetryMessages()
-{
-    qDebug() << "[MAVLINK] Requesting telemetry messages";
-    // Message ID -> interval in microseconds
-    static const struct { quint32 id; qint32 us; } messages[] = {
+namespace {
+// Message ID -> interval in microseconds
+struct StreamRequest { quint32 id; qint32 us; };
+const StreamRequest kTelemetryStreams[] = {
         {MAVLINK_MSG_ID_SYS_STATUS, 500000},           // 2 Hz
         {MAVLINK_MSG_ID_GPS_RAW_INT, 200000},          // 5 Hz
         {MAVLINK_MSG_ID_ATTITUDE, 100000},             // 10 Hz
@@ -266,9 +257,49 @@ void MavlinkManager::requestTelemetryMessages()
         {MAVLINK_MSG_ID_EKF_STATUS_REPORT, 500000},    // 2 Hz
         {MAVLINK_MSG_ID_MISSION_CURRENT, 1000000},     // 1 Hz
         {MAVLINK_MSG_ID_HOME_POSITION, 2000000},       // 0.5 Hz
-    };
-    for (const auto &m : messages)
+};
+} // namespace
+
+void MavlinkManager::requestTelemetryMessages()
+{
+    qDebug() << "[MAVLINK] Requesting telemetry messages";
+    if (!m_streamClock.isValid())
+        m_streamClock.start();
+    for (const auto &m : kTelemetryStreams) {
+        m_streamLastRequest.insert(m.id, m_streamClock.elapsed());
         setMessageInterval(m.id, m.us);
+    }
+}
+
+void MavlinkManager::checkTelemetryStreams()
+{
+    // FC must be alive - otherwise the whole link is down and requests go nowhere
+    if (!m_heartbeatEver || m_lastHeartbeat.elapsed() > 3000)
+        return;
+    if (!m_streamClock.isValid())
+        m_streamClock.start();
+    const qint64 now = m_streamClock.elapsed();
+    bool changed = false;
+    for (const auto &m : kTelemetryStreams) {
+        const qint64 silentLimit = std::max<qint64>(3000, 4LL * m.us / 1000);
+        const qint64 lastRx = m_streamLastRx.value(m.id, -1);
+        if (lastRx >= 0 && now - lastRx <= silentLimit)
+            continue;
+        // Unsupported messages: no endless spam - every 15 s after 5 tries
+        const int attempts = m_streamAttempts.value(m.id);
+        const qint64 retryAfter = attempts < 5 ? 3000 : 15000;
+        const qint64 lastReq = m_streamLastRequest.value(m.id, -1000000);
+        if (now - lastReq <= retryAfter)
+            continue;
+        m_streamLastRequest.insert(m.id, now);
+        m_streamAttempts.insert(m.id, attempts + 1);
+        m_streamRerequests[m.id]++;
+        changed = true;
+        qDebug() << "[STREAM]" << messageIdToName(m.id) << "silent - re-requesting" << (1000000 / m.us) << "Hz";
+        setMessageInterval(m.id, m.us);
+    }
+    if (changed)
+        emit streamRerequestsChanged();
 }
 
 void MavlinkManager::setMessageInterval(quint32 messageId, qint32 intervalUs)
@@ -319,6 +350,11 @@ void MavlinkManager::parseData(const QByteArray &data)
 
 void MavlinkManager::processMessage(const mavlink_message_t &msg)
 {
+    if (!m_streamClock.isValid())
+        m_streamClock.start();
+    m_streamLastRx.insert(msg.msgid, m_streamClock.elapsed());
+    m_streamAttempts.remove(msg.msgid);
+
     if (!m_seenMessageIds.contains(msg.msgid)) {
         m_seenMessageIds.insert(msg.msgid);
         qDebug() << "[MAVLINK] New message type:" << msg.msgid << messageIdToName(msg.msgid);
@@ -783,6 +819,22 @@ void MavlinkManager::handleParamValue(const mavlink_param_value_t &m)
     const int count = m.param_count;
 
     m_parameters.setValue(name, m.param_value);
+
+    // Bulk write verification: ArduPilot answers every PARAM_SET with PARAM_VALUE
+    if (m_writeInProgress) {
+        auto it = m_writePending.find(name);
+        if (it != m_writePending.end()) {
+            if (ParameterFile::valuesEqual(it.value(), m.param_value)) {
+                m_writePending.erase(it);
+                m_writeEcho.remove(name);
+                ++m_writeConfirmed;
+                emit paramWriteChanged();
+            } else {
+                m_writeEcho.insert(name, m.param_value);
+            }
+        }
+    }
+
     bool changed = false;
     if (count > 0 && m_paramTotalCount != count) {
         m_paramTotalCount = count;
@@ -1156,23 +1208,242 @@ int MavlinkManager::defaultParameterCount() const
 
 void MavlinkManager::restoreDefaultParameters()
 {
-    if (m_restoreInProgress)
-        return;
-    m_restoreInProgress = true;
-    m_restoreIndex = 0;
-    m_restoreProgress = 0;
-    m_restoreTotal = DefaultParameters::values().size();
-    emit restoreChanged();
-    m_restoreTimer.start();
+    startParamWrite(DefaultParameters::values(), QStringLiteral("defaults"));
 }
 
-void MavlinkManager::cancelRestore()
+// ---------------------------------------------------------------------------
+// Bulk parameter write with verification
+
+void MavlinkManager::startParamWrite(const QList<ParamItem> &items, const QString &source)
 {
-    if (!m_restoreInProgress)
+    if (m_writeInProgress)
         return;
-    m_restoreTimer.stop();
-    m_restoreInProgress = false;
-    emit restoreChanged();
+    if (m_armed) {
+        m_writeResult = {{QStringLiteral("done"), true}, {QStringLiteral("source"), source},
+                         {QStringLiteral("error"), QStringLiteral("Vehicle is armed - disarm before writing parameters")},
+                         {QStringLiteral("total"), items.size()}, {QStringLiteral("ok"), 0},
+                         {QStringLiteral("failed"), QVariantList()}};
+        emit paramWriteChanged();
+        return;
+    }
+    if (items.isEmpty())
+        return;
+
+    m_writeSource = source;
+    m_writeItems = items;
+    m_writeSendList = items;
+    m_writePending.clear();
+    m_writeEcho.clear();
+    for (const auto &it : items)
+        m_writePending.insert(it.first, it.second);
+    m_writeIndex = 0;
+    m_writeSent = 0;
+    m_writeConfirmed = 0;
+    m_writePass = 1;
+    m_writeCancelled = false;
+    m_writeResult.clear();
+    m_writeInProgress = true;
+    qDebug() << "[PARAM] Bulk write started:" << items.size() << "params from" << source;
+    emit paramWriteChanged();
+    m_writeTimer.start();
+}
+
+void MavlinkManager::paramWriteTick()
+{
+    if (!m_connected) {
+        finishParamWrite(QStringLiteral("Connection lost"));
+        return;
+    }
+    if (m_armed) {
+        finishParamWrite(QStringLiteral("Vehicle was armed - write stopped"));
+        return;
+    }
+
+    if (m_writeIndex < m_writeSendList.size()) {
+        const ParamItem &item = m_writeSendList.at(m_writeIndex++);
+        if (m_writePending.contains(item.first))   // may have been confirmed meanwhile
+            setParameter(item.first, item.second);
+        if (m_writePass == 1)
+            m_writeSent = m_writeIndex;
+        if (m_writeIndex == m_writeSendList.size())
+            m_writeWait.start();
+        emit paramWriteChanged();
+        return;
+    }
+
+    if (m_writePending.isEmpty()) {
+        finishParamWrite(QString());
+        return;
+    }
+    if (m_writeWait.elapsed() < 1500)   // give the last echoes time to arrive
+        return;
+    if (m_writePass >= 3) {
+        finishParamWrite(QString());
+        return;
+    }
+
+    // Next pass: resend only what is still unconfirmed, original order
+    ++m_writePass;
+    m_writeSendList.clear();
+    for (const auto &it : std::as_const(m_writeItems))
+        if (m_writePending.contains(it.first))
+            m_writeSendList.append(it);
+    m_writeIndex = 0;
+    qDebug() << "[PARAM] Pass" << m_writePass << "- resending" << m_writeSendList.size() << "unconfirmed params";
+    emit paramWriteChanged();
+}
+
+void MavlinkManager::finishParamWrite(const QString &error)
+{
+    m_writeTimer.stop();
+    m_writeInProgress = false;
+
+    QVariantList failed;
+    for (const auto &it : std::as_const(m_writeItems)) {
+        if (!m_writePending.contains(it.first))
+            continue;
+        QString reason;
+        if (m_writeCancelled || !error.isEmpty())
+            reason = QStringLiteral("not confirmed");
+        else if (m_writeEcho.contains(it.first))
+            reason = QStringLiteral("vehicle keeps %1").arg(ParameterModel::formatValue(m_writeEcho.value(it.first)));
+        else
+            reason = QStringLiteral("no response (unknown on this firmware or needs reboot)");
+        failed.append(QVariantMap{{QStringLiteral("name"), it.first},
+                                  {QStringLiteral("value"), ParameterModel::formatValue(it.second)},
+                                  {QStringLiteral("reason"), reason}});
+    }
+
+    m_writeResult = {{QStringLiteral("done"), true},
+                     {QStringLiteral("source"), m_writeSource},
+                     {QStringLiteral("cancelled"), m_writeCancelled},
+                     {QStringLiteral("error"), error},
+                     {QStringLiteral("total"), m_writeItems.size()},
+                     {QStringLiteral("ok"), m_writeConfirmed},
+                     {QStringLiteral("failed"), failed}};
+    qDebug() << "[PARAM] Bulk write finished:" << m_writeConfirmed << "/" << m_writeItems.size() << "confirmed,"
+             << failed.size() << "failed" << (error.isEmpty() ? QString() : error)
+             << (m_writeCancelled ? "(cancelled)" : "");
+    emit paramWriteChanged();
+}
+
+void MavlinkManager::cancelParamWrite()
+{
+    if (!m_writeInProgress)
+        return;
+    m_writeCancelled = true;
+    finishParamWrite(QString());
+}
+
+void MavlinkManager::clearParamWriteResult()
+{
+    if (m_writeResult.isEmpty())
+        return;
+    m_writeResult.clear();
+    emit paramWriteChanged();
+}
+
+// ---------------------------------------------------------------------------
+// Parameter file from local storage
+
+bool MavlinkManager::loadParameterFile(const QUrl &url)
+{
+    // Android returns content:// URIs; QFile opens those directly in Qt 6
+    const QString path = url.isLocalFile() ? url.toLocalFile() : url.toString();
+    QString fileName = QUrl::fromPercentEncoding(path.toUtf8());
+    fileName = fileName.mid(std::max(fileName.lastIndexOf(QLatin1Char('/')), fileName.lastIndexOf(QLatin1Char(':'))) + 1);
+
+    m_fileItems.clear();
+    m_paramFile = {{QStringLiteral("loaded"), false}, {QStringLiteral("fileName"), fileName}};
+
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) {
+        m_paramFile.insert(QStringLiteral("error"), QStringLiteral("Cannot open file: %1").arg(f.errorString()));
+        emit paramFileChanged();
+        return false;
+    }
+    if (f.size() > 2 * 1024 * 1024) {
+        m_paramFile.insert(QStringLiteral("error"), QStringLiteral("File too large for a parameter file"));
+        emit paramFileChanged();
+        return false;
+    }
+
+    const ParameterFile::ParseResult r = ParameterFile::parse(f.readAll());
+    for (const auto &e : r.entries)
+        m_fileItems.append({e.name, e.value});
+
+    if (m_fileItems.isEmpty()) {
+        m_paramFile.insert(QStringLiteral("error"), QStringLiteral("No parameters found - expected NAME,VALUE lines"));
+    } else {
+        m_paramFile.insert(QStringLiteral("loaded"), true);
+    }
+    m_paramFile.insert(QStringLiteral("count"), m_fileItems.size());
+    m_paramFile.insert(QStringLiteral("duplicates"), r.duplicates);
+    m_paramFile.insert(QStringLiteral("errorCount"), r.errors.size());
+    m_paramFile.insert(QStringLiteral("errors"), QStringList(r.errors.mid(0, 20)));
+    qDebug() << "[PARAM] File" << fileName << ":" << m_fileItems.size() << "params," << r.errors.size()
+             << "bad lines," << r.duplicates << "duplicates";
+    emit paramFileChanged();
+    return !m_fileItems.isEmpty();
+}
+
+MavlinkManager::FilePlan MavlinkManager::buildFilePlan(bool keepCalibration, bool onlyChanged, bool withPreview) const
+{
+    FilePlan plan;
+    for (const auto &it : m_fileItems) {
+        const ParameterFile::Kind kind = ParameterFile::classify(it.first);
+        if (kind == ParameterFile::Kind::ReadOnly) {
+            ++plan.skippedReadOnly;
+            continue;
+        }
+        if (kind == ParameterFile::Kind::Calibration && keepCalibration) {
+            ++plan.skippedCalibration;
+            continue;
+        }
+        const bool known = m_parameters.contains(it.first);
+        const float current = m_parameters.value(it.first);
+        if (known && ParameterFile::valuesEqual(current, it.second)) {
+            ++plan.same;
+            if (onlyChanged)
+                continue;
+        } else {
+            known ? ++plan.changed : ++plan.unknown;
+            if (withPreview && plan.changes.size() < 500)
+                plan.changes.append(QVariantMap{
+                    {QStringLiteral("name"), it.first},
+                    {QStringLiteral("oldText"), known ? ParameterModel::formatValue(current) : QStringLiteral("-")},
+                    {QStringLiteral("newText"), ParameterModel::formatValue(it.second)},
+                    {QStringLiteral("isNew"), !known}});
+        }
+        plan.items.append(it);
+    }
+    return plan;
+}
+
+QVariantMap MavlinkManager::parameterFilePlan(bool keepCalibration, bool onlyChanged) const
+{
+    const FilePlan p = buildFilePlan(keepCalibration, onlyChanged, true);
+    return {{QStringLiteral("write"), p.items.size()},
+            {QStringLiteral("changed"), p.changed},
+            {QStringLiteral("same"), p.same},
+            {QStringLiteral("unknown"), p.unknown},
+            {QStringLiteral("skippedCalibration"), p.skippedCalibration},
+            {QStringLiteral("skippedReadOnly"), p.skippedReadOnly},
+            {QStringLiteral("vehicleParamsLoaded"), m_parameters.count() > 0},
+            {QStringLiteral("changes"), p.changes}};
+}
+
+void MavlinkManager::writeParameterFile(bool keepCalibration, bool onlyChanged)
+{
+    const FilePlan p = buildFilePlan(keepCalibration, onlyChanged, false);
+    startParamWrite(p.items, QStringLiteral("file"));
+}
+
+void MavlinkManager::clearParameterFile()
+{
+    m_fileItems.clear();
+    m_paramFile.clear();
+    emit paramFileChanged();
 }
 
 // ---------------------------------------------------------------------------

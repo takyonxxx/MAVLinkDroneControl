@@ -3,9 +3,11 @@
 //  DroneControl
 //
 //  Tum parametreleri cihazdan okur, kategorilere gruplar, duzenleyip geri yazar.
+//  Lokal .param dosyasindan (Mission Planner / QGC formati) yukleme de yapar.
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: - Kategori tanimlari
 private struct ParamCategory {
@@ -70,6 +72,12 @@ private func iconFor(_ categoryName: String) -> String {
 // MARK: - Ana gorunum
 struct ParametersView: View {
     @EnvironmentObject var mavlinkManager: MAVLinkManager
+#if os(iOS)
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    private var compact: Bool { sizeClass == .compact }
+#else
+    private let compact = false
+#endif
     
     @State private var searchText = ""
     @State private var expandedCategories: Set<String> = []
@@ -77,6 +85,9 @@ struct ParametersView: View {
     @State private var editValue: String = ""
     @State private var recentlyWritten: Set<String> = []
     @State private var showRestoreConfirm = false
+    @State private var showFileImporter = false
+    @State private var loadedFile: LoadedParamFile? = nil
+    @State private var showWriteResult = false
     
     // Kategori adi -> [(isim, deger)] sirali
     private var grouped: [(category: String, params: [(String, Float)])] {
@@ -106,6 +117,11 @@ struct ParametersView: View {
                 headerBar
                     .padding(.horizontal)
                 
+                if let result = mavlinkManager.paramWriteResult, !mavlinkManager.paramWriteInProgress {
+                    writeResultBanner(result)
+                        .padding(.horizontal)
+                }
+                
                 searchBar
                     .padding(.horizontal)
                 
@@ -115,6 +131,37 @@ struct ParametersView: View {
                     Spacer()
                 } else {
                     paramList
+                }
+            }
+            .fileImporter(isPresented: $showFileImporter,
+                          allowedContentTypes: [.item],
+                          allowsMultipleSelection: false) { result in
+                switch result {
+                case .success(let urls):
+                    if let url = urls.first { loadParamFile(url) }
+                case .failure(let error):
+                    presentLoadedFile(LoadedParamFile(fileName: "", parse: .init(),
+                                                      error: "Cannot open file: \(error.localizedDescription)"))
+                }
+            }
+            .sheet(item: $loadedFile) { file in
+                ParamFileSheet(file: file,
+                               onWrite: { items in
+                                   mavlinkManager.writeParameters(items, source: "file")
+                                   loadedFile = nil
+                               },
+                               onCancel: { loadedFile = nil })
+                    .environmentObject(mavlinkManager)
+            }
+            .sheet(isPresented: $showWriteResult) {
+                if let result = mavlinkManager.paramWriteResult {
+                    ParamWriteResultSheet(result: result,
+                                          onReboot: {
+                                              mavlinkManager.rebootFlightController()
+                                              showWriteResult = false
+                                          },
+                                          onClose: { showWriteResult = false })
+                        .environmentObject(mavlinkManager)
                 }
             }
         }
@@ -149,7 +196,7 @@ struct ParametersView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "arrow.down.circle.fill")
                             .font(.system(size: 13))
-                        Text("Read from Vehicle")
+                        Text(compact ? "Read" : "Read from Vehicle")
                             .font(.system(size: 13, weight: .semibold))
                     }
                     .padding(.horizontal, 14)
@@ -158,14 +205,30 @@ struct ParametersView: View {
                     .foregroundColor(.black)
                     .cornerRadius(8)
                 }
-                .disabled(!mavlinkManager.isConnected || mavlinkManager.restoreInProgress)
+                .disabled(!mavlinkManager.isConnected || mavlinkManager.paramWriteInProgress)
+                .buttonStyle(.plain)
+                
+                Button(action: { showFileImporter = true }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "doc.badge.arrow.up.fill")
+                            .font(.system(size: 13))
+                        Text(compact ? "File" : "Load from File")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .padding(.horizontal, 14)
+                    .frame(height: 34)
+                    .background(Color.green)
+                    .foregroundColor(.black)
+                    .cornerRadius(8)
+                }
+                .disabled(mavlinkManager.paramWriteInProgress)
                 .buttonStyle(.plain)
                 
                 Button(action: { showRestoreConfirm = true }) {
                     HStack(spacing: 6) {
                         Image(systemName: "arrow.counterclockwise.circle.fill")
                             .font(.system(size: 13))
-                        Text("Restore Defaults")
+                        Text(compact ? "Defaults" : "Restore Defaults")
                             .font(.system(size: 13, weight: .semibold))
                     }
                     .padding(.horizontal, 14)
@@ -174,7 +237,7 @@ struct ParametersView: View {
                     .foregroundColor(.black)
                     .cornerRadius(8)
                 }
-                .disabled(!mavlinkManager.isConnected || mavlinkManager.restoreInProgress)
+                .disabled(!mavlinkManager.isConnected || mavlinkManager.paramWriteInProgress)
                 .buttonStyle(.plain)
                 
                 if mavlinkManager.paramDownloading {
@@ -189,15 +252,19 @@ struct ParametersView: View {
                     .foregroundColor(.gray)
             }
             
-            if mavlinkManager.restoreInProgress {
+            // Toplu yazma ilerlemesi: 1. turda gonderilen, tekrar turlarinda dogrulanan adet
+            if mavlinkManager.paramWriteInProgress {
                 HStack(spacing: 10) {
-                    ProgressView(value: Double(mavlinkManager.restoreProgress),
-                                 total: Double(max(mavlinkManager.restoreTotal, 1)))
+                    ProgressView(value: Double(mavlinkManager.paramWritePass == 1
+                                               ? mavlinkManager.paramWriteSent
+                                               : mavlinkManager.paramWriteConfirmed),
+                                 total: Double(max(mavlinkManager.paramWriteTotal, 1)))
                         .tint(.orange)
-                    Text("\(mavlinkManager.restoreProgress)/\(mavlinkManager.restoreTotal)")
+                    Text((mavlinkManager.paramWritePass > 1 ? "retry \(mavlinkManager.paramWritePass)  " : "")
+                         + "\u{2713}\(mavlinkManager.paramWriteConfirmed)/\(mavlinkManager.paramWriteTotal)")
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundColor(.orange)
-                    Button(action: { mavlinkManager.cancelRestore() }) {
+                    Button(action: { mavlinkManager.cancelParamWrite() }) {
                         Text("Cancel")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(.red)
@@ -218,6 +285,68 @@ struct ParametersView: View {
         } message: {
             Text("Writes the known-good snapshot to the vehicle, overwriting current values. Takes about \(DefaultParameters.values.count / 40 + 5) seconds. Reboot the vehicle afterwards.")
         }
+    }
+    
+    // MARK: Dosyadan yukleme
+    private func loadParamFile(_ url: URL) {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        let name = url.lastPathComponent
+        do {
+            let data = try Data(contentsOf: url)
+            guard data.count <= 2 * 1024 * 1024 else {
+                presentLoadedFile(LoadedParamFile(fileName: name, parse: .init(),
+                                                  error: "File too large for a parameter file"))
+                return
+            }
+            let parsed = ParameterFile.parse(data)
+            print("[PARAM] File \(name): \(parsed.entries.count) params, \(parsed.errors.count) bad lines, \(parsed.duplicates) duplicates")
+            presentLoadedFile(LoadedParamFile(fileName: name, parse: parsed,
+                                              error: parsed.entries.isEmpty
+                                                  ? "No parameters found - expected NAME,VALUE lines" : nil))
+        } catch {
+            presentLoadedFile(LoadedParamFile(fileName: name, parse: .init(),
+                                              error: "Cannot open file: \(error.localizedDescription)"))
+        }
+    }
+    
+    /// fileImporter kapanirken ayni anda sheet acmak iOS'ta sessizce basarisiz olabiliyor
+    private func presentLoadedFile(_ file: LoadedParamFile) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            loadedFile = file
+        }
+    }
+    
+    private func writeResultBanner(_ r: MAVLinkManager.ParamWriteResult) -> some View {
+        let bad = !r.failed.isEmpty || r.error != nil || r.cancelled
+        let text: String = {
+            if let err = r.error {
+                return "\u{26A0} \(err)" + (r.ok > 0 ? "  (\(r.ok)/\(r.total) confirmed)" : "")
+            }
+            var t = (r.cancelled ? "Cancelled - " : "\u{2713} ") + "\(r.ok)/\(r.total) parameters confirmed"
+            if !r.failed.isEmpty { t += ", \(r.failed.count) failed" }
+            return t + ". Reboot the vehicle to apply."
+        }()
+        return HStack(spacing: 8) {
+            Text(text)
+                .font(.system(size: 12))
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button("Details") { showWriteResult = true }
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.cyan)
+                .buttonStyle(.plain)
+            Button(action: { mavlinkManager.clearParamWriteResult() }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12))
+                    .foregroundColor(.gray)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(8)
+        .background((bad ? Color.orange : Color.green).opacity(0.15))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(bad ? Color.orange : Color.green, lineWidth: 1))
+        .cornerRadius(8)
     }
     
     private var progressText: String {
@@ -435,6 +564,277 @@ struct ParamEditSheet: View {
         .padding(24)
         .frame(maxWidth: 420)
         .presentationDetents([.height(360)])
+        .background(Color(red: 0.07, green: 0.07, blue: 0.12))
+    }
+}
+
+// MARK: - Dosyadan yukleme: onizleme + yazma
+struct LoadedParamFile: Identifiable {
+    let id = UUID()
+    let fileName: String
+    let parse: ParameterFile.ParseResult
+    let error: String?
+    var loaded: Bool { !parse.entries.isEmpty }
+}
+
+struct ParamFileSheet: View {
+    @EnvironmentObject var mavlinkManager: MAVLinkManager
+    let file: LoadedParamFile
+    let onWrite: ([(String, Float)]) -> Void
+    let onCancel: () -> Void
+    
+    @State private var keepCalibration = true
+    @State private var onlyChanged = true
+    
+    private var plan: ParameterFile.Plan {
+        ParameterFile.plan(entries: file.parse.entries, vehicle: mavlinkManager.parameters,
+                           keepCalibration: keepCalibration, onlyChanged: onlyChanged)
+    }
+    
+    var body: some View {
+        let plan = self.plan
+        let vehicleLoaded = !mavlinkManager.parameters.isEmpty
+        let canWrite = file.loaded && !plan.items.isEmpty && mavlinkManager.isConnected
+            && !mavlinkManager.isArmed && !mavlinkManager.paramWriteInProgress
+        
+        VStack(spacing: 12) {
+            Text("Load parameter file")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundColor(.white)
+            Text(file.fileName)
+                .font(.system(size: 13, design: .monospaced))
+                .foregroundColor(.cyan)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            
+            if let error = file.error {
+                Text("\u{26A0} \(error)")
+                    .font(.system(size: 13))
+                    .foregroundColor(.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            
+            if file.loaded {
+                Text(summaryText)
+                    .font(.system(size: 12))
+                    .foregroundColor(.gray)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if !file.parse.errors.isEmpty {
+                    Text(file.parse.errors.prefix(3).joined(separator: "\n"))
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.orange)
+                        .lineLimit(3)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                
+                optionToggle(isOn: $keepCalibration,
+                             title: "Keep this vehicle's calibration",
+                             detail: "Skips compass/accel/gyro offsets, level trim, RC min/max/trim, power module and sensor IDs (\(plan.skippedCalibration) params)")
+                optionToggle(isOn: $onlyChanged,
+                             title: "Write only changed values",
+                             detail: vehicleLoaded ? "Compared against the parameters read from the vehicle"
+                                                   : "Vehicle parameters not read yet - every value will be written")
+                
+                HStack(spacing: 4) {
+                    statCell(plan.items.count, "to write", .cyan)
+                    statCell(plan.changed, "changed", .orange)
+                    statCell(plan.same, "same", .green)
+                    statCell(plan.unknown, "not on vehicle", .gray)
+                }
+                
+                if !plan.changes.isEmpty {
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(plan.changes) { c in
+                                HStack(spacing: 6) {
+                                    Text(c.name)
+                                        .foregroundColor(.white)
+                                    Spacer()
+                                    Text(c.oldValue.map(formatValue) ?? "-")
+                                        .foregroundColor(.gray)
+                                    Image(systemName: "arrow.right")
+                                        .font(.system(size: 9))
+                                        .foregroundColor(.gray)
+                                    Text(formatValue(c.newValue))
+                                        .foregroundColor(c.oldValue == nil ? .gray : .cyan)
+                                }
+                                .font(.system(size: 12, design: .monospaced))
+                                .padding(.horizontal, 10)
+                                .frame(height: 26)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .frame(maxHeight: min(220, CGFloat(plan.changes.count) * 26 + 8))
+                    .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                    .cornerRadius(10)
+                }
+                
+                if mavlinkManager.isArmed {
+                    warning("\u{26A0} Vehicle is armed - disarm before writing parameters.", .red)
+                } else if !mavlinkManager.isConnected {
+                    warning("Not connected - connect to the vehicle to write.", .orange)
+                }
+                if plan.unknown > 0 && vehicleLoaded {
+                    warning("Parameters not on the vehicle usually appear after an *_ENABLE / *_TYPE change and a reboot. Load the file again after rebooting.", .gray)
+                }
+            }
+            
+            HStack(spacing: 12) {
+                Button(action: onCancel) {
+                    Text("Cancel")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.gray.opacity(0.3))
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                }
+                .buttonStyle(.plain)
+                
+                if file.loaded {
+                    Button(action: { onWrite(plan.items) }) {
+                        Text("Write \(plan.items.count) parameters")
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(canWrite ? Color.red : Color.gray)
+                            .foregroundColor(.white)
+                            .cornerRadius(10)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!canWrite)
+                }
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: 520)
+        .presentationDetents([.large])
+        .background(Color(red: 0.07, green: 0.07, blue: 0.12))
+    }
+    
+    private var summaryText: String {
+        var t = "\(file.parse.entries.count) parameters in file"
+        if file.parse.duplicates > 0 { t += ", \(file.parse.duplicates) duplicates (last value used)" }
+        if !file.parse.errors.isEmpty { t += ", \(file.parse.errors.count) unreadable lines ignored" }
+        return t
+    }
+    
+    private func optionToggle(isOn: Binding<Bool>, title: String, detail: String) -> some View {
+        Button(action: { isOn.wrappedValue.toggle() }) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: isOn.wrappedValue ? "checkmark.square.fill" : "square")
+                    .font(.system(size: 20))
+                    .foregroundColor(isOn.wrappedValue ? .cyan : .gray)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title)
+                        .font(.system(size: 13))
+                        .foregroundColor(.white)
+                    Text(detail)
+                        .font(.system(size: 11))
+                        .foregroundColor(.gray)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+    
+    private func statCell(_ value: Int, _ label: String, _ color: Color) -> some View {
+        VStack(spacing: 0) {
+            Text("\(value)")
+                .font(.system(size: 18, weight: .bold, design: .monospaced))
+                .foregroundColor(color)
+            Text(label)
+                .font(.system(size: 10))
+                .foregroundColor(.gray)
+        }
+        .frame(maxWidth: .infinity)
+    }
+    
+    private func warning(_ text: String, _ color: Color) -> some View {
+        Text(text)
+            .font(.system(size: 12))
+            .foregroundColor(color)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+// MARK: - Toplu yazma sonucu
+struct ParamWriteResultSheet: View {
+    @EnvironmentObject var mavlinkManager: MAVLinkManager
+    let result: MAVLinkManager.ParamWriteResult
+    let onReboot: () -> Void
+    let onClose: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            Text(result.source == "defaults" ? "Restore defaults result" : "Parameter file write result")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundColor(.white)
+            Text("\(result.ok) of \(result.total) confirmed by the vehicle" + (result.error.map { "\n" + $0 } ?? ""))
+                .font(.system(size: 13))
+                .foregroundColor(.gray)
+                .multilineTextAlignment(.center)
+            
+            if !result.failed.isEmpty {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 6) {
+                        ForEach(result.failed) { f in
+                            VStack(alignment: .leading, spacing: 1) {
+                                HStack {
+                                    Text(f.name).foregroundColor(.white)
+                                    Spacer()
+                                    Text(formatValue(f.value)).foregroundColor(.cyan)
+                                }
+                                .font(.system(size: 12, design: .monospaced))
+                                Text(f.reason)
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.orange)
+                            }
+                            .padding(.horizontal, 10)
+                        }
+                    }
+                    .padding(.vertical, 6)
+                }
+                .frame(maxHeight: 260)
+                .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                .cornerRadius(10)
+            }
+            
+            Text("Most changes take effect after a reboot. Parameters that appear only after enabling a feature need a reboot and a second load.")
+                .font(.system(size: 11))
+                .foregroundColor(.gray)
+                .fixedSize(horizontal: false, vertical: true)
+            
+            HStack(spacing: 12) {
+                Button(action: onClose) {
+                    Text("Close")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.gray.opacity(0.3))
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                }
+                .buttonStyle(.plain)
+                Button(action: onReboot) {
+                    Text("Reboot Vehicle")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(mavlinkManager.isConnected && !mavlinkManager.isArmed ? Color.orange : Color.gray)
+                        .foregroundColor(.black)
+                        .cornerRadius(10)
+                }
+                .buttonStyle(.plain)
+                .disabled(!mavlinkManager.isConnected || mavlinkManager.isArmed)
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: 520)
+        .presentationDetents([.medium, .large])
         .background(Color(red: 0.07, green: 0.07, blue: 0.12))
     }
 }

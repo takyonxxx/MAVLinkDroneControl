@@ -49,6 +49,8 @@ class MAVLinkProtocol {
     
     // Handler delegate
     weak var messageHandler: MAVLinkMessageHandler?
+    /// Her tam mesajda (alici thread'inde) cagrilir - telemetri akis bekcisi icin
+    var onMessageReceived: ((UInt32) -> Void)?
     
     // Lock for thread safety
     private let parseLock = NSLock()
@@ -97,6 +99,8 @@ class MAVLinkProtocol {
             receivedMessageTypes.insert(msg.msgid)
             print("📨 New message type: ID \(msg.msgid) (\(MAVLinkProtocol.messageIDToName(msg.msgid)))")
         }
+        
+        onMessageReceived?(msg.msgid)
         
         guard let handler = messageHandler else {
             print("⚠️ No message handler registered")

@@ -60,6 +60,19 @@ struct GPSView: View {
         return now.timeIntervalSince(last) < 3.0
     }
     
+    private var heartbeatAlive: Bool {
+        guard let hb = mavlinkManager.lastHeartbeatDate else { return false }
+        return now.timeIntervalSince(hb) < 3.0
+    }
+    
+    private var heartbeatAgeText: String {
+        guard let hb = mavlinkManager.lastHeartbeatDate else { return "--" }
+        let dt = now.timeIntervalSince(hb)
+        return dt < 1 ? "<1 s" : String(format: "%.0f s", dt)
+    }
+    
+    private var gpsRerequests: Int { mavlinkManager.streamRerequestCount[24] ?? 0 }
+    
     private var secondsSinceLast: String {
         guard let last = raw.lastReceived else { return "never" }
         let dt = now.timeIntervalSince(last)
@@ -75,6 +88,19 @@ struct GPSView: View {
             return ("GPS NOT DETECTED",
                     "SYS_STATUS reports no GPS sensor. Check wiring/port (SERIALx_PROTOCOL=5, GPS_TYPE) and power.",
                     .red)
+        }
+        if !heartbeatAlive {
+            return ("NO LINK TO FC",
+                    (mavlinkManager.lastHeartbeatDate == nil
+                        ? "No HEARTBEAT received from the flight controller yet."
+                        : "No HEARTBEAT from the flight controller for \(heartbeatAgeText).")
+                    + " The telemetry link is down (FC power, ESP bridge, Wi-Fi) - not a GPS problem.",
+                    .red)
+        }
+        if raw.received && !dataFlowing {
+            return ("GPS STREAM STOPPED",
+                    "FC is alive but GPS_RAW_INT stopped (FC reboot or lost request). The app re-requests it automatically - re-requested \(gpsRerequests) times so far.",
+                    .orange)
         }
         if !raw.received || !dataFlowing {
             return ("NO GPS DATA",
@@ -130,6 +156,8 @@ struct GPSView: View {
     
     private var linkCard: some View {
         card("Hardware / Link") {
+            statusRow("FC heartbeat", ok: heartbeatAlive,
+                      text: heartbeatAlive ? "ALIVE" : (mavlinkManager.lastHeartbeatDate == nil ? "NONE" : "LOST \(heartbeatAgeText) ago"))
             statusRow("SYS_STATUS received", ok: mavlinkManager.sysStatusReceived,
                       text: mavlinkManager.sysStatusReceived ? "yes" : "waiting")
             statusRow("GPS sensor present", ok: sensorPresent,
@@ -143,6 +171,7 @@ struct GPSView: View {
             row("Message count", "\(raw.messageCount)")
             row("Rate", raw.received ? String(format: "%.1f Hz (requested 5 Hz)", raw.rateHz) : "--")
             row("Last message", secondsSinceLast)
+            row("Re-requested", "\(gpsRerequests)x")
         }
     }
     

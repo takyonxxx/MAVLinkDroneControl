@@ -50,7 +50,8 @@ SOURCES += \
     src/SettingsManager.cpp \
     src/GamepadManager.cpp \
     src/TileCache.cpp \
-    src/DefaultParameters.cpp
+    src/DefaultParameters.cpp \
+    src/ParameterFile.cpp
 
 HEADERS += \
     src/UdpConnection.h \
@@ -60,7 +61,8 @@ HEADERS += \
     src/SettingsManager.h \
     src/GamepadManager.h \
     src/TileCache.h \
-    src/DefaultParameters.h
+    src/DefaultParameters.h \
+    src/ParameterFile.h
 
 RESOURCES += resources.qrc
 

@@ -392,6 +392,9 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
         self.mavlinkProtocol = MAVLinkProtocol()
         
         mavlinkProtocol.messageHandler = self
+        mavlinkProtocol.onMessageReceived = { [weak self] msgId in
+            self?.noteStreamMessage(msgId)
+        }
         
         udpConnection.onDataReceived = { [weak self] data in
             self?.mavlinkProtocol.parseData(data)
@@ -417,24 +420,77 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
         }
     }
     
+    // Message ID -> Rate in microseconds (1000000 = 1Hz, 250000 = 4Hz, 100000 = 10Hz)
+    private static let telemetryStreams: [(UInt32, Int32)] = [
+        (1, 500000),    // SYS_STATUS at 2Hz
+        (24, 200000),   // GPS_RAW_INT at 5Hz
+        (30, 100000),   // ATTITUDE at 10Hz
+        (33, 200000),   // GLOBAL_POSITION_INT at 5Hz
+        (36, 100000),   // SERVO_OUTPUT_RAW at 10Hz - ÖNEMLİ!
+        (74, 200000),   // VFR_HUD at 5Hz
+        (29, 500000),   // SCALED_PRESSURE at 2Hz
+        (26, 100000),   // SCALED_IMU at 10Hz (IMU dead-reckoning speed)
+        (193, 500000),  // EKF_STATUS_REPORT at 2Hz (Messages sekmesi icin)
+    ]
+    
     private func requestTelemetryMessages() {
         print("📡 Requesting telemetry messages...")
-        
-        // Message ID -> Rate in microseconds (1000000 = 1Hz, 250000 = 4Hz, 100000 = 10Hz)
-        let messages: [(UInt32, Int32)] = [
-            (1, 500000),    // SYS_STATUS at 2Hz
-            (24, 200000),   // GPS_RAW_INT at 5Hz
-            (30, 100000),   // ATTITUDE at 10Hz
-            (33, 200000),   // GLOBAL_POSITION_INT at 5Hz
-            (36, 100000),   // SERVO_OUTPUT_RAW at 10Hz - ÖNEMLİ!
-            (74, 200000),   // VFR_HUD at 5Hz
-            (29, 500000),   // SCALED_PRESSURE at 2Hz
-            (26, 100000),   // SCALED_IMU at 10Hz (IMU dead-reckoning speed)
-            (193, 500000),  // EKF_STATUS_REPORT at 2Hz (Messages sekmesi icin)
-        ]
-        
-        for (msgId, intervalUs) in messages {
+        let now = Date()
+        streamLock.lock()
+        for (msgId, _) in Self.telemetryStreams { streamLastRequest[msgId] = now }
+        streamLock.unlock()
+        for (msgId, intervalUs) in Self.telemetryStreams {
             setMessageInterval(messageId: msgId, intervalUs: intervalUs)
+        }
+    }
+    
+    // MARK: - Telemetry stream keeper
+    //
+    // SET_MESSAGE_INTERVAL istekleri FC'de RAM'de tutulur: FC reboot olursa (pil takip-cikarma,
+    // parametre sonrasi reboot, brown-out) veya istek UDP'de kaybolursa akis durur ve bir daha
+    // istenmezdi. FC heartbeat gonderirken istenen bir mesaj susarsa istek yeniden gonderilir.
+    
+    private let streamLock = NSLock()
+    private var streamLastRx: [UInt32: Date] = [:]
+    private var streamLastRequest: [UInt32: Date] = [:]
+    private var streamAttempts: [UInt32: Int] = [:]          // veri gelmeden ust uste deneme
+    @Published var streamRerequestCount: [UInt32: Int] = [:]  // tanilama (GPS sekmesi)
+    @Published var lastHeartbeatDate: Date? = nil             // tanilama: FC hayatta mi
+    
+    /// MAVLinkProtocol alici thread'inden cagrilir.
+    private func noteStreamMessage(_ msgId: UInt32) {
+        streamLock.lock()
+        streamLastRx[msgId] = Date()
+        streamAttempts[msgId] = 0
+        streamLock.unlock()
+    }
+    
+    /// Watchdog'dan (main, 1 Hz) cagrilir.
+    private func checkTelemetryStreams() {
+        // FC hayatta degilse istemenin anlami yok (link kopuk / FC kapali)
+        guard let hb = lastHeartbeatTime, Date().timeIntervalSince(hb) < 3.0 else { return }
+        let now = Date()
+        var resend: [(UInt32, Int32)] = []
+        streamLock.lock()
+        for (msgId, intervalUs) in Self.telemetryStreams {
+            let silentLimit = max(3.0, 4.0 * Double(intervalUs) / 1_000_000)
+            let silent = streamLastRx[msgId].map { now.timeIntervalSince($0) > silentLimit } ?? true
+            guard silent else { continue }
+            // Desteklenmeyen mesajlar icin sonsuz spam yapma: 5 denemeden sonra 15 s'de bir
+            let attempts = streamAttempts[msgId] ?? 0
+            let retryAfter: TimeInterval = attempts < 5 ? 3.0 : 15.0
+            if now.timeIntervalSince(streamLastRequest[msgId] ?? .distantPast) > retryAfter {
+                streamLastRequest[msgId] = now
+                streamAttempts[msgId] = attempts + 1
+                resend.append((msgId, intervalUs))
+            }
+        }
+        streamLock.unlock()
+        
+        for (msgId, intervalUs) in resend {
+            print("[STREAM] \(MAVLinkProtocol.messageIDToName(msgId)) silent - re-requesting \(1_000_000 / Int(intervalUs)) Hz")
+            setMessageInterval(messageId: msgId, intervalUs: intervalUs)
+            streamRerequestCount[msgId, default: 0] += 1
         }
     }
     
@@ -481,6 +537,10 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
         connectionWatchdogTimer?.invalidate()
         connectionWatchdogTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
+            self.checkTelemetryStreams()
+            if self.lastHeartbeatDate != self.lastHeartbeatTime {
+                self.lastHeartbeatDate = self.lastHeartbeatTime
+            }
             if let lastTime = self.lastHeartbeatTime {
                 let elapsed = Date().timeIntervalSince(lastTime)
                 if elapsed > self.connectionTimeout {
@@ -866,36 +926,164 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
         sendMessage(msg)
     }
     
-    // MARK: - Restore defaults (rate-limited bulk write)
-    @Published var restoreInProgress: Bool = false
-    @Published var restoreProgress: Int = 0          // yazilan adet
-    @Published var restoreTotal: Int = 0
-    private var restoreCancelled = false
+    // MARK: - Bulk parameter write (Restore Defaults / Load from File)
+    //
+    // Sends every item ~25 ms apart (the ESP bridge must not be flooded), waits for the
+    // PARAM_VALUE echo ArduPilot returns for each PARAM_SET and resends the unconfirmed
+    // ones (3 passes max). Runs entirely on the main thread.
+    
+    struct ParamWriteFailure: Identifiable {
+        let name: String
+        let value: Float
+        let reason: String
+        var id: String { name }
+    }
+    
+    struct ParamWriteResult {
+        let source: String          // "defaults" | "file"
+        let total: Int
+        let ok: Int
+        let failed: [ParamWriteFailure]
+        let cancelled: Bool
+        let error: String?
+    }
+    
+    @Published var paramWriteInProgress: Bool = false
+    @Published var paramWriteSent: Int = 0           // pass 1: gonderilen adet
+    @Published var paramWriteConfirmed: Int = 0      // PARAM_VALUE ile dogrulanan adet
+    @Published var paramWriteTotal: Int = 0
+    @Published var paramWritePass: Int = 0
+    @Published var paramWriteResult: ParamWriteResult? = nil
+    
+    private var writeItems: [(String, Float)] = []
+    private var writeSendList: [(String, Float)] = []
+    private var writePending: [String: Float] = [:]   // dogrulanmamis: isim -> beklenen deger
+    private var writeEcho: [String: Float] = [:]      // beklenenden farkli gelen son deger
+    private var writeIndex = 0
+    private var writeSource = ""
+    private var writeCancelled = false
+    private var writeWaitStart = Date()
+    private var writeTimer: Timer?
     
     func restoreDefaultParameters() {
-        guard !restoreInProgress else { return }
-        let items = DefaultParameters.values
-        restoreCancelled = false
-        DispatchQueue.main.async {
-            self.restoreInProgress = true
-            self.restoreProgress = 0
-            self.restoreTotal = items.count
+        writeParameters(DefaultParameters.values, source: "defaults")
+    }
+    
+    /// Main thread'den cagrilmali.
+    func writeParameters(_ items: [(String, Float)], source: String) {
+        guard !paramWriteInProgress, !items.isEmpty else { return }
+        if isArmed {
+            paramWriteResult = ParamWriteResult(source: source, total: items.count, ok: 0, failed: [],
+                                                cancelled: false,
+                                                error: "Vehicle is armed - disarm before writing parameters")
+            return
         }
-        // ESP koprusunu bogmamak icin 25 ms arayla (~40 msg/s) gonder
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self else { return }
-            for (i, item) in items.enumerated() {
-                if self.restoreCancelled { break }
-                self.setParameter(name: item.0, value: item.1)
-                DispatchQueue.main.async { self.restoreProgress = i + 1 }
-                Thread.sleep(forTimeInterval: 0.025)
+        writeSource = source
+        writeItems = items
+        writeSendList = items
+        writePending = Dictionary(items, uniquingKeysWith: { _, last in last })
+        writeEcho = [:]
+        writeIndex = 0
+        writeCancelled = false
+        paramWriteSent = 0
+        paramWriteConfirmed = 0
+        paramWriteTotal = items.count
+        paramWritePass = 1
+        paramWriteResult = nil
+        paramWriteInProgress = true
+        print("[PARAM] Bulk write started: \(items.count) params from \(source)")
+        
+        writeTimer?.invalidate()
+        let timer = Timer(timeInterval: 0.025, repeats: true) { [weak self] _ in
+            self?.paramWriteTick()
+        }
+        RunLoop.main.add(timer, forMode: .common)   // keep running while a list is scrolled
+        writeTimer = timer
+    }
+    
+    private func paramWriteTick() {
+        if !isConnected {
+            finishParamWrite(error: "Connection lost")
+            return
+        }
+        if isArmed {
+            finishParamWrite(error: "Vehicle was armed - write stopped")
+            return
+        }
+        
+        if writeIndex < writeSendList.count {
+            let item = writeSendList[writeIndex]
+            writeIndex += 1
+            if writePending[item.0] != nil {             // bu arada dogrulanmis olabilir
+                setParameter(name: item.0, value: item.1)
             }
-            DispatchQueue.main.async { self.restoreInProgress = false }
+            if paramWritePass == 1 { paramWriteSent = writeIndex }
+            if writeIndex == writeSendList.count { writeWaitStart = Date() }
+            return
+        }
+        
+        if writePending.isEmpty {
+            finishParamWrite(error: nil)
+            return
+        }
+        if Date().timeIntervalSince(writeWaitStart) < 1.5 { return }   // son yanitlari bekle
+        if paramWritePass >= 3 {
+            finishParamWrite(error: nil)
+            return
+        }
+        
+        // Sonraki tur: sadece dogrulanmayanlari, orijinal sirayla tekrar gonder
+        paramWritePass += 1
+        writeSendList = writeItems.filter { writePending[$0.0] != nil }
+        writeIndex = 0
+        print("[PARAM] Pass \(paramWritePass) - resending \(writeSendList.count) unconfirmed params")
+    }
+    
+    /// PARAM_VALUE geldiginde (main thread) cagrilir.
+    private func confirmParamWrite(name: String, value: Float) {
+        guard paramWriteInProgress, let expected = writePending[name] else { return }
+        if ParameterFile.valuesEqual(expected, value) {
+            writePending.removeValue(forKey: name)
+            writeEcho.removeValue(forKey: name)
+            paramWriteConfirmed += 1
+        } else {
+            writeEcho[name] = value
         }
     }
     
-    func cancelRestore() {
-        restoreCancelled = true
+    private func finishParamWrite(error: String?) {
+        writeTimer?.invalidate()
+        writeTimer = nil
+        paramWriteInProgress = false
+        
+        var failed: [ParamWriteFailure] = []
+        var seen = Set<String>()
+        for (name, value) in writeItems where writePending[name] != nil && !seen.contains(name) {
+            seen.insert(name)
+            let reason: String
+            if writeCancelled || error != nil {
+                reason = "not confirmed"
+            } else if let echo = writeEcho[name] {
+                reason = "vehicle keeps " + String(format: "%g", echo)
+            } else {
+                reason = "no response (unknown on this firmware or needs reboot)"
+            }
+            failed.append(ParamWriteFailure(name: name, value: value, reason: reason))
+        }
+        paramWriteResult = ParamWriteResult(source: writeSource, total: paramWriteTotal,
+                                            ok: paramWriteConfirmed, failed: failed,
+                                            cancelled: writeCancelled, error: error)
+        print("[PARAM] Bulk write finished: \(paramWriteConfirmed)/\(paramWriteTotal) confirmed, \(failed.count) failed\(error.map { " - " + $0 } ?? "")\(writeCancelled ? " (cancelled)" : "")")
+    }
+    
+    func cancelParamWrite() {
+        guard paramWriteInProgress else { return }
+        writeCancelled = true
+        finishParamWrite(error: nil)
+    }
+    
+    func clearParamWriteResult() {
+        paramWriteResult = nil
     }
     
     func requestParameter(name: String) {
@@ -1402,6 +1590,7 @@ class MAVLinkManager: ObservableObject, MAVLinkMessageHandler {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             self.parameters[paramName] = value
+            self.confirmParamWrite(name: paramName, value: value)
             if count > 0 { self.paramTotalCount = count }
             // Son parametre geldiginde veya tum liste dolunca indirmeyi bitti say
             if index >= count - 1 || (count > 0 && self.parameters.count >= count) {
