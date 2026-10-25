@@ -52,7 +52,9 @@ struct MotorTestView: View {
     private let keepaliveInterval: TimeInterval = 1.0
     private let keepaliveTimeout: Float = 3.0
     @State private var keepaliveTimer: Timer? = nil
-    
+    // Test boyunca gorulen en yuksek akim (motor basladiginda sifirlanir)
+    @State private var peakCurrent: Float = 0
+
     // Motor testi sirasinda ArduCopter kendi icinde ARM eder ve heartbeat "armed" gosterir;
     // bu bizim baslattigimiz test ise engel degildir (isArmedByPilot bunu ayirt eder).
     private var canTest: Bool {
@@ -71,7 +73,9 @@ struct MotorTestView: View {
                 } else if mavlinkManager.motorTestActive {
                     warningBanner("Motor test active - FC reports ARMED during test, this is normal", color: .orange)
                 }
-                
+
+                batteryCard
+
                 // Quad X yerlesimi: ust satir on, alt satir arka
                 HStack(spacing: 12) {
                     motorCard(.motor(3))   // on sol
@@ -103,8 +107,99 @@ struct MotorTestView: View {
         .onChange(of: mavlinkManager.isConnected) { connected in
             if !connected { stopAll(sendCommand: false) }
         }
+        .onChange(of: mavlinkManager.batteryCurrent) { current in
+            // Sadece motor calisirken tepe akimi izle
+            if runningMotor != nil, current > peakCurrent { peakCurrent = current }
+        }
     }
-    
+
+    // MARK: - Battery
+    // SYS_STATUS: voltage_battery (mV), current_battery (cA, -1 = olculmuyor)
+    private var batteryCard: some View {
+        let voltage = mavlinkManager.batteryVoltage
+        let current = mavlinkManager.batteryCurrent
+        let remaining = mavlinkManager.batteryRemaining
+        let hasVoltage = mavlinkManager.isConnected && voltage > 0
+        let hasCurrent = hasVoltage && current >= 0
+        let power = hasCurrent ? voltage * current : 0
+
+        let voltageColor: Color = !hasVoltage ? .gray : (voltage < 10.5 ? .red : (voltage < 11.1 ? .orange : .green))
+        let currentColor: Color = !hasCurrent ? .gray : (current > 30 ? .red : (current > 15 ? .orange : .cyan))
+
+        return VStack(spacing: 10) {
+            HStack {
+                Image(systemName: batteryIcon(remaining: remaining, connected: hasVoltage))
+                    .foregroundColor(voltageColor)
+                Text("Battery")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                Spacer()
+                if hasVoltage && remaining >= 0 {
+                    Text("\(remaining)%")
+                        .font(.system(.subheadline, design: .monospaced)).bold()
+                        .foregroundColor(voltageColor)
+                }
+            }
+
+            HStack(spacing: 0) {
+                telemetryValue(title: "Voltage",
+                               value: hasVoltage ? String(format: "%.2f", voltage) : "--",
+                               unit: "V", color: voltageColor)
+                telemetryValue(title: "Current",
+                               value: hasCurrent ? String(format: "%.2f", current) : "--",
+                               unit: "A", color: currentColor)
+                telemetryValue(title: "Power",
+                               value: hasCurrent ? String(format: "%.0f", power) : "--",
+                               unit: "W", color: hasCurrent ? .white : .gray)
+                telemetryValue(title: "Peak",
+                               value: peakCurrent > 0 ? String(format: "%.2f", peakCurrent) : "--",
+                               unit: "A", color: peakCurrent > 0 ? .orange : .gray)
+            }
+
+            if hasVoltage && !hasCurrent {
+                Text("Current sensor not reporting (BATT_MONITOR)")
+                    .font(.caption2)
+                    .foregroundColor(.gray)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding()
+        .background(Color.black.opacity(0.3))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(runningMotor != nil ? Color.orange.opacity(0.6) : Color.clear, lineWidth: 1)
+        )
+        .cornerRadius(12)
+    }
+
+    private func telemetryValue(title: String, value: String, unit: String, color: Color) -> some View {
+        VStack(spacing: 2) {
+            Text(title)
+                .font(.caption2)
+                .foregroundColor(.gray)
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text(value)
+                    .font(.system(size: 22, weight: .bold, design: .monospaced))
+                    .foregroundColor(color)
+                Text(unit)
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func batteryIcon(remaining: Int, connected: Bool) -> String {
+        guard connected else { return "battery.0" }
+        switch remaining {
+        case 75...: return "battery.100"
+        case 50..<75: return "battery.75"
+        case 25..<50: return "battery.50"
+        case 1..<25: return "battery.25"
+        default: return "battery.0"
+        }
+    }
+
     // MARK: - Safety
     private var safetyCard: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -324,6 +419,7 @@ struct MotorTestView: View {
             mavlinkManager.stopMotorTest(motorSeq: QuadMotor.motor(current).testSeq)
         }
         runningMotor = motor.id
+        peakCurrent = 0
         sendTest(motor)
         
         keepaliveTimer?.invalidate()
